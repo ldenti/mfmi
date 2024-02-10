@@ -207,10 +207,10 @@ int main_0(int argc, char *argv[]) {
   int64_t end_cnt[6] = {0, 0, 0, 0, 0, 0};
   int p = 0;
   int a, rl;
-  for (i = 0; i < 100000; ++i) {
+  for (i = 0; i < 1000000; ++i) {
     a = rand() % 4 + 1;
     rl = rand() % 500 + 1;
-    ret += rle_insert(block, p, a, rl, cnt, end_cnt);
+    ret = rle_insert(block, p, a, rl, cnt, end_cnt);
     end_cnt[a] += rl;
     p += rl;
   }

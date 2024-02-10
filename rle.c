@@ -11,10 +11,10 @@ const uint8_t rle_auxtab[8] = {0x01, 0x11, 0x21, 0x31, 0x03, 0x13, 0x07, 0x17};
 int rle_insert_cached(uint8_t *block, int64_t x, int a, int64_t rl,
                       int64_t cnt[6], const int64_t ec[6], int *beg,
                       int64_t bc[6]) {
-  uint16_t *nptr = (uint16_t *)block;
+  uint32_t *nptr = (uint32_t *)block;
   int diff;
 
-  block += 2; // skip the first 2 counting bytes
+  block += 4; // skip the first 4 counting bytes
   if (*nptr == 0) {
     memset(cnt, 0, 48);
     diff = rle_enc1(block, a, rl);
@@ -110,18 +110,18 @@ int rle_insert(uint8_t *block, int64_t x, int a, int64_t rl, int64_t cnt[6],
   return rle_insert_cached(block, x, a, rl, cnt, ec, &beg, bc);
 }
 
-void rle_split(uint8_t *block, uint8_t *new_block) {
-  int n = *(uint16_t *)block;
-  uint8_t *end = block + 2 + n, *q = block + 2 + (n >> 1);
-  while (*q >> 6 == 2)
-    --q;
-  memcpy(new_block + 2, q, end - q);
-  *(uint16_t *)new_block = end - q;
-  *(uint16_t *)block = q - block - 2;
-}
+// void rle_split(uint8_t *block, uint8_t *new_block) {
+//   int n = *(uint16_t *)block;
+//   uint8_t *end = block + 2 + n, *q = block + 2 + (n >> 1);
+//   while (*q >> 6 == 2)
+//     --q;
+//   memcpy(new_block + 2, q, end - q);
+//   *(uint16_t *)new_block = end - q;
+//   *(uint16_t *)block = q - block - 2;
+// }
 
 void rle_count(const uint8_t *block, int64_t cnt[6]) {
-  const uint8_t *q = block + 2, *end = q + *(uint16_t *)block; // ?
+  const uint8_t *q = block + 4, *end = q + *(uint32_t *)block; // ?
   while (q < end) {
     int c;
     int64_t l;
@@ -131,8 +131,8 @@ void rle_count(const uint8_t *block, int64_t cnt[6]) {
 }
 
 void rle_print(const uint8_t *block, int expand) {
-  const uint16_t *p = (const uint16_t *)block;
-  const uint8_t *q = block + 2, *end = block + 2 + *p;
+  const uint32_t *p = (const uint32_t *)block;
+  const uint8_t *q = block + 4, *end = block + 4 + *p;
   while (q < end) {
     int c;
     int64_t l, x;
@@ -160,7 +160,7 @@ void rle_rank2a(const uint8_t *block, int64_t x, int64_t y, int64_t *cx,
     int c = 0;
     int64_t l, z = 0;
     memset(cnt, 0, 48);
-    p = block + 2;
+    p = block + 4;
     while (z < x) {
       rle_dec1(p, c, l);
       z += l;
@@ -198,7 +198,7 @@ void rle_rank2a(const uint8_t *block, int64_t x, int64_t y, int64_t *cx,
     int t = 0;
     int64_t l = 0, z = tot;
     memcpy(cnt, ec, 48);
-    p = block + 2 + *(const uint16_t *)block;
+    p = block + 4 + *(const uint32_t *)block;
     if (cy) {
       move_backward(y) for (a = 0; a != 6; ++a) cy[a] += cnt[a];
       cy[*p & 7] += y - z;

@@ -38,7 +38,7 @@ void rle_print(const uint8_t *block, int expand);
 extern const uint8_t rle_auxtab[8];
 
 #define RLE_MIN_SPACE 18
-#define rle_nptr(block) ((uint16_t *)(block))
+#define rle_nptr(block) ((uint32_t *)(block))
 
 // decode one run (c,l) and move the pointer p
 #define rle_dec1(p, c, l)                                                      \
