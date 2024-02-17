@@ -1,5 +1,5 @@
 CC=			gcc
-CFLAGS=		-Wall -O0 -g #-fno-inline-functions -fno-inline-functions-called-once
+CFLAGS=		-Wall #-fno-inline-functions -fno-inline-functions-called-once
 DFLAGS=
 INCLUDES=	
 LIBS=		-lz -lpthread
@@ -9,13 +9,18 @@ LIBS=		-lz -lpthread
 .c.o:
 		$(CC) -c $(CFLAGS) $(DFLAGS) $(INCLUDES) $< -o $@
 
-all:ppp
+all: CFLAGS+=-g -O3 -DNDEBUG
+all: ppp
 
-ppp:rle.o rlcsa.o main.o
+debug: CFLAGS+=-DDEBUG -g -O0
+debug: ppp
+
+ppp:brle.o rle.o rlcsa.o main.o
 		$(CC) $(CFLAGS) $(DFLAGS) $^ -o $@ $(LIBS)
 
+brle.o:brle.h
 rle.o:rle.h
-rlcsa.o:rle.h rlcsa.h 
+rlcsa.o:rle.h kvec.h ksort.h rlcsa.h
 main.o:rle.h rlcsa.h
 
 clean:
