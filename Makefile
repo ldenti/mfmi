@@ -18,9 +18,9 @@ debug: ppp
 ppp:brle.o rle.o rlcsa.o main.o
 		$(CC) $(CFLAGS) $(DFLAGS) $^ -o $@ $(LIBS)
 
-brle.o:brle.h
+# brle.o:brle.h
 rle.o:rle.h
-rlcsa.o:rle.h kvec.h ksort.h rlcsa.h
+rlcsa.o:rle.h kvec.h rlcsa.h
 main.o:rle.h rlcsa.h
 
 clean:

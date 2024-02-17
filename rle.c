@@ -6,6 +6,29 @@
 
 const uint8_t rle_auxtab[8] = {0x01, 0x11, 0x21, 0x31, 0x03, 0x13, 0x07, 0x17};
 
+rle_t *rle_init(uint32_t size, int max_bsize) {
+  rle_t *rle = (rle_t *)calloc(1, sizeof(rle_t));
+  rle->max_size = size;
+  rle->max_bsize = max_bsize;
+  rle->b = 0;
+  rle->l = 0;
+  rle->block = (uint8_t *)calloc(size + 4, sizeof(uint8_t));
+  rle->blocks = (uint8_t **)calloc(size / max_bsize + 1, sizeof(uint8_t *));
+  rle->psamples = (uint32_t *)calloc(size / max_bsize + 1, sizeof(uint32_t));
+  rle->rsamples = (uint32_t *)calloc(size / max_bsize + 1, sizeof(uint32_t));
+  rle->ecxs = (int64_t *)calloc(6 * (size / max_bsize + 1), sizeof(int64_t));
+  return rle;
+}
+
+void rle_destroy(rle_t *rle) {
+  free(rle->block);
+  free(rle->blocks);
+  free(rle->psamples);
+  free(rle->rsamples);
+  free(rle->ecxs);
+  free(rle);
+}
+
 // insert symbol $a after $x symbols in $str; marginal counts added to $cnt;
 // returns the size increase
 int rle_insert_cached(uint8_t *block, int64_t x, int a, int64_t rl,
@@ -102,26 +125,85 @@ int rle_insert_cached(uint8_t *block, int64_t x, int a, int64_t rl,
   return (*nptr += diff);
 }
 
-int rle_insert(uint8_t *block, int64_t x, int a, int64_t rl, int64_t cnt[6],
+int rle_insert(rle_t *rle, int64_t x, int a, int64_t rl, int64_t cnt[6],
                const int64_t ec[6]) {
   int beg = 0;
   int64_t bc[6];
   memset(bc, 0, 48);
-  return rle_insert_cached(block, x, a, rl, cnt, ec, &beg, bc);
+  return rle_insert_cached(rle->block, x, a, rl, cnt, ec, &beg, bc);
 }
 
-// void rle_split(uint8_t *block, uint8_t *new_block) {
-//   int n = *(uint16_t *)block;
-//   uint8_t *end = block + 2 + n, *q = block + 2 + (n >> 1);
-//   while (*q >> 6 == 2)
-//     --q;
-//   memcpy(new_block + 2, q, end - q);
-//   *(uint16_t *)new_block = end - q;
-//   *(uint16_t *)block = q - block - 2;
-// }
+void rle_update_block(rle_t *rle, uint8_t c, uint32_t l) {
+  // printf("Updating block %d, character %d (p=%d): %d ", rle->b, c, rle->b * 6
+  // + c, rle->ecxs[(rle->b * 6 + c)]);
+  rle->ecxs[(rle->b * 6 + c)] += l;
+  // printf("-> %d\n", rle->ecxs[(rle->b * 6 + c)]);
+}
 
-void rle_count(const uint8_t *block, int64_t cnt[6]) {
-  const uint8_t *q = block + 4, *end = q + *(uint32_t *)block; // ?
+void rle_store_block(rle_t *rle, uint8_t *q, uint32_t p, uint32_t r) {
+  rle->blocks[rle->b] = q;
+  rle->psamples[rle->b] = p;
+  rle->rsamples[rle->b] = r;
+  ++rle->b;
+}
+
+void rle_print_block(rle_t *rle, int i, int expand) {
+  const uint32_t *n = (const uint32_t *)rle->block;
+  const uint8_t *q = rle->blocks[i], *end = i + 1 < rle->b
+                                                ? rle->blocks[i + 1]
+                                                : rle->block + 4 + *n;
+  // printf("%d (%d): %p to %p\n", i, rle->b, q, end);
+  // printf("p:%d r:%d ", rle->psamples[i], rle->rsamples[i]);
+  while (q < end) {
+    int c;
+    int64_t l, x;
+    rle_dec1(q, c, l);
+    if (expand)
+      for (x = 0; x < l; ++x)
+        putchar("01XXXX"[c]);
+    else
+      printf("%c(%ld) ", "01XXXX"[c], (long)l);
+  }
+  putchar('\n');
+}
+
+void rle_freeze(rle_t *rle) {
+  const uint32_t *n = (const uint32_t *)rle->block;
+  const uint8_t *q = rle->block + 4, *end = rle->block + 4 + *n;
+  uint8_t *pq = q;
+  int expected_blocks = *n / rle->max_bsize;
+  // printf("Freezing: %d / %d = %d\n", *n, rle->max_bsize, expected_blocks);
+  int i = 0;          // each run can take more bytes, this counts the bytes
+  int rank = 0;       // sample for rank
+  int currp = 0;      // sample for positions
+  int currb_rank = 0; // rank in current block
+  int currb_l = 0;
+  uint8_t c;
+  uint32_t l;
+  while (q < end) {
+    if (i >= rle->max_bsize) {
+      rle_store_block(rle, pq, currp, rank);
+      i = 0;
+      currp = rle->l; // += q - pq;
+      pq = q;
+      rank += currb_rank;
+      currb_rank = 0;
+    }
+    rle_dec1(q, c, l);
+    rle->l += l;
+    if (c)
+      currb_rank += l;
+    rle_update_block(rle, c, l);
+    ++i;
+  }
+  rle_store_block(rle, pq, currp, rank);
+  /* printf("%d BLOCKS\n", rle->b); */
+  /* for (int b = 0; b < rle->b; ++b) */
+  /*   rle_print_block(rle, b, 1); */
+}
+
+void rle_count(const rle_t *rle, int64_t cnt[6]) {
+  const uint8_t *q = rle->block + 4, *end = q + *(uint32_t *)rle->block;
   while (q < end) {
     int c;
     int64_t l;
@@ -130,24 +212,59 @@ void rle_count(const uint8_t *block, int64_t cnt[6]) {
   }
 }
 
-void rle_print(const uint8_t *block, int expand) {
-  const uint32_t *p = (const uint32_t *)block;
-  const uint8_t *q = block + 4, *end = block + 4 + *p;
+void rle_print(const rle_t *rle, int expand) {
+  const uint32_t *p = (const uint32_t *)rle->block;
+  const uint8_t *q = rle->block + 4, *end = rle->block + 4 + *p;
   while (q < end) {
     int c;
     int64_t l, x;
     rle_dec1(q, c, l);
     if (expand)
       for (x = 0; x < l; ++x)
-        putchar("$ACGTN"[c]);
+        putchar("01XXXX"[c]);
     else
-      printf("%c%ld", "$ACGTN"[c], (long)l);
+      printf("%c(%ld) ", "01XXXX"[c], (long)l);
   }
   putchar('\n');
 }
 
+void rle_rank1a(const rle_t *rle, int64_t x, int64_t *cx) {
+  // rle_print(rle, 1);
+  uint32_t *n = (uint32_t *)rle->block;
+  // int _b = x / rle->max_bsize; // block index
+  int b = -1;
+  for (int i = 0; i < rle->b; ++i) {
+    // printf("%d %d %d\n", rle->psamples[i], x, rle->psamples[i] < x);
+    b += rle->psamples[i] < x;
+  }
+  // printf("b: %d\n", b);
+  /* for (int i = 0; i < rle->b; ++i) */
+  /*   printf("ranks %d: %d\n", i, rle->rsamples[i]); */
+  /* for (int i = 0; i < rle->b; ++i) */
+  /*   printf("poss %d: %d\n", i, rle->psamples[i]); */
+
+  /* printf("EXC[0]: %d\n", rle->ecxs[(b * 6)]); */
+  /* printf("EXC[1]: %d\n", rle->ecxs[(b * 6 + 1)]); */
+  /* if (x >= rle->l) { */
+  /*   cx[0] = rle->ecxs[b * 6 + 0]; */
+  /*   cx[1] = rle->ecxs[b * 6 + 1]; */
+  /* } else { */
+  rle_rank2a(rle->blocks[b], x - rle->psamples[b], -1, cx, 0,
+             (rle->ecxs + (b * 6)));
+  /* printf("Global p: %d\n", x); */
+  /* printf("  - %d\n", rle->psamples[b]); */
+  /* printf("Local p: %d\n", x - rle->psamples[b]); */
+
+  /* printf("Local rank: %d\n", cx[1]); */
+  /* printf("  + %d\n", rle->rsamples[b]); */
+  cx[1] += rle->rsamples[b];
+  /* } */
+}
+
 void rle_rank2a(const uint8_t *block, int64_t x, int64_t y, int64_t *cx,
                 int64_t *cy, const int64_t ec[6]) {
+  /* printf("'' EXC[0]: %d\n", ec[0]); */
+  /* printf("'' EXC[1]: %d\n", ec[1]); */
   int a;
   int64_t tot, cnt[6];
   const uint8_t *p;
@@ -156,11 +273,12 @@ void rle_rank2a(const uint8_t *block, int64_t x, int64_t y, int64_t *cx,
   tot = ec[0] + ec[1] + ec[2] + ec[3] + ec[4] + ec[5];
   if (tot == 0)
     return;
-  if (x <= (tot - y) + (tot >> 3)) {
+  // printf("RANK2 CHECK: %d <= (%d - %d) + %d\n", x, tot, y, tot >> 3);
+  if (1) { // x <= (tot - y) + (tot >> 3)) {
     int c = 0;
     int64_t l, z = 0;
     memset(cnt, 0, 48);
-    p = block + 4;
+    p = block; //  + 4;
     while (z < x) {
       rle_dec1(p, c, l);
       z += l;
@@ -198,7 +316,7 @@ void rle_rank2a(const uint8_t *block, int64_t x, int64_t y, int64_t *cx,
     int t = 0;
     int64_t l = 0, z = tot;
     memcpy(cnt, ec, 48);
-    p = block + 4 + *(const uint32_t *)block;
+    p = block; // + *(const uint32_t *)block; // +4
     if (cy) {
       move_backward(y) for (a = 0; a != 6; ++a) cy[a] += cnt[a];
       cy[*p & 7] += y - z;

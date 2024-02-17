@@ -14,19 +14,43 @@
 extern "C" {
 #endif
 
+typedef struct {
+  uint8_t *block;
+  uint8_t **blocks;
+  uint32_t b;
+  uint64_t l;
+  uint32_t max_size;
+  uint32_t max_bsize;
+  uint32_t *psamples;
+  uint32_t *rsamples;
+  int64_t *ecxs;
+} rle_t;
+
+rle_t *rle_init(uint32_t size, int max_bsize);
+void rle_destroy(rle_t *rle);
+
+void rle_update_block(rle_t *rle, uint8_t c, uint32_t l);
+void rle_store_block(rle_t *rle, uint8_t *p, uint32_t l, uint32_t r);
+
 int rle_insert_cached(uint8_t *block, int64_t x, int a, int64_t rl,
                       int64_t cnt[6], const int64_t ec[6], int *beg,
                       int64_t bc[6]);
-int rle_insert(uint8_t *block, int64_t x, int a, int64_t rl, int64_t cnt[6],
+
+// insert symbol a at position x; marginal counts added to cnt; returns the size
+// increase. cnt are counts at insertion position (updated while inserting).
+// end_cnt are counts at end (managed by caller and increased after insertion)
+int rle_insert(rle_t *rle, int64_t x, int a, int64_t rl, int64_t cnt[6],
                const int64_t end_cnt[6]);
-void rle_split(uint8_t *block, uint8_t *new_block);
-void rle_count(const uint8_t *block, int64_t cnt[6]);
+void rle_freeze(rle_t *rle);
+void rle_count(const rle_t *rle, int64_t cnt[6]);
 void rle_rank2a(const uint8_t *block, int64_t x, int64_t y, int64_t *cx,
                 int64_t *cy, const int64_t ec[6]);
-#define rle_rank1a(block, x, cx, ec) rle_rank2a(block, x, -1, cx, 0, ec)
+// returns number of chars in [0, x). Stored in cx
+void rle_rank1a(const rle_t *rle, int64_t x, int64_t *cx);
 
-void rle_print(const uint8_t *block, int expand);
+void rle_print(const rle_t *rle, int expand);
 
+void rle_print_block(rle_t *rle, int i, int expand);
 #ifdef __cplusplus
 }
 #endif
@@ -40,17 +64,32 @@ extern const uint8_t rle_auxtab[8];
 #define RLE_MIN_SPACE 18
 #define rle_nptr(block) ((uint32_t *)(block))
 
+// decode character of run c and move the pointer p
+#define rle_dec1_c(p, c)                                                       \
+  do {                                                                         \
+    (c) = *(p)&7;                                                              \
+    if (LIKELY((*(p)&0x80) == 0)) {                                            \
+      ++(p);                                                                   \
+    } else if (LIKELY(*(p) >> 5 == 6)) {                                       \
+      (p) += 2;                                                                \
+    } else {                                                                   \
+      int n = ((*(p)&0x10) >> 2) + 4;                                          \
+      while (--n)                                                              \
+        ++(p);                                                                 \
+    }                                                                          \
+  } while (0)
+
 // decode one run (c,l) and move the pointer p
 #define rle_dec1(p, c, l)                                                      \
   do {                                                                         \
-    (c) = *(p) & 7;                                                            \
-    if (LIKELY((*(p) & 0x80) == 0)) {                                          \
+    (c) = *(p)&7;                                                              \
+    if (LIKELY((*(p)&0x80) == 0)) {                                            \
       (l) = *(p)++ >> 3;                                                       \
     } else if (LIKELY(*(p) >> 5 == 6)) {                                       \
-      (l) = (*(p) & 0x18L) << 3L | ((p)[1] & 0x3fL);                           \
+      (l) = (*(p)&0x18L) << 3L | ((p)[1] & 0x3fL);                             \
       (p) += 2;                                                                \
     } else {                                                                   \
-      int n = ((*(p) & 0x10) >> 2) + 4;                                        \
+      int n = ((*(p)&0x10) >> 2) + 4;                                          \
       (l) = *(p)++ >> 3 & 1;                                                   \
       while (--n)                                                              \
         (l) = ((l) << 6) | (*(p)++ & 0x3fL);                                   \
