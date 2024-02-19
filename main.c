@@ -1,12 +1,10 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <zlib.h>
-/* #include <string.h> */
 #include <sys/resource.h>
 #include <sys/time.h>
+#include <zlib.h>
 
-/* #include "brle.h" */
 #include "kseq.h"
 #include "rlcsa.h"
 #include "rle.h"
@@ -76,7 +74,7 @@ int main(int argc, char *argv[]) {
   char *fa_path = argv[1]; // single reference
   char *fq_path = argv[2]; // reads on + strand
 
-  rlcsa_t *rlc = rlc_init();
+  rlcsa_t *rlc = rlc_init((uint32_t)1 << 31, 512);
 
   gzFile fp = gzopen(fa_path, "rb");
   kseq_t *ks = kseq_init(fp);
@@ -115,7 +113,6 @@ int main(int argc, char *argv[]) {
     rle_freeze(rlc->bits[i]);
     for (int b = 0; b < rlc->bits[i]->b; ++b) {
       // printf("--- %d\n", b);
-      // rle_print_block(rlc->bits[i], b, 0);
       /* printf("-\n", b); */
       /* for (int j = 0; j < 6; ++j) */
       /*   printf("%d ", rlc->bits[i]->ecxs[b * 6 + j]); */
@@ -166,34 +163,10 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
-void print_second(const int X[6]) {
-  for (int i = 0; i < 4; ++i)
-    printf("%d ", X[i]);
-  printf("\n");
-}
-
-int main_testcvec(int argc, char *argv[]) {
-
-  int *X = calloc(10, sizeof(int));
-  for (int i = 0; i < 10; ++i)
-    X[i] = i + 1;
-
-  for (int i = 0; i < 10; ++i)
-    printf("%d ", X[i]);
-  printf("\n");
-
-  print_second(X);
-  print_second(X + 0);
-  print_second(X + 2);
-  print_second(X + 3);
-
-  return 0;
-}
-
 int main_debug(int argc, char *argv[]) {
   char *fa_path = "example/tiny.fa";
 
-  rlcsa_t *rlc = rlc_init();
+  rlcsa_t *rlc = rlc_init(1024, 2);
 
   gzFile fp = gzopen(fa_path, "rb");
   kseq_t *ks = kseq_init(fp);
@@ -211,17 +184,6 @@ int main_debug(int argc, char *argv[]) {
       printf("%d", s[i]);
     printf("0\n");
     rlc_insert(rlc, (const uint8_t *)s, l);
-
-    //   /* // Add reverse to buffer */
-    //   /* for (i = 0; i < (l >> 1); ++i) { */
-    //   /*   int tmp = s[l - 1 - i]; */
-    //   /*   tmp = (tmp >= 1 && tmp <= 4) ? 5 - tmp : tmp; */
-    //   /*   s[l - 1 - i] = (s[i] >= 1 && s[i] <= 4) ? 5 - s[i] : s[i]; */
-    //   /*   s[i] = tmp; */
-    //   /* } */
-    //   /* if (l & 1) */
-    //   /*   s[i] = (s[i] >= 1 && s[i] <= 4) ? 5 - s[i] : s[i]; */
-    //   /* mr_insert1(mr, s); */
   }
   kseq_destroy(ks);
   gzclose(fp);
@@ -232,7 +194,6 @@ int main_debug(int argc, char *argv[]) {
     rle_freeze(rlc->bits[i]);
     for (int b = 0; b < rlc->bits[i]->b; ++b) {
       printf("--- %d\n", b);
-      rle_print_block(rlc->bits[i], b, 0);
       for (int j = 0; j < 6; ++j)
         printf("%d ", rlc->bits[i]->ecxs[b * 6 + j]);
       printf("\n");
@@ -267,27 +228,3 @@ int main_debug(int argc, char *argv[]) {
 
   return 0;
 }
-
-/**
-int main_brle(int argc, char *argv[]) {
-  uint8_t *block = calloc(8, sizeof(uint8_t));
-  brle_enc1(block + 4, 1, 1);
-  for (uint8_t *p = block; p < block + 8; ++p)
-    printf("%d ", *p);
-  printf("\n");
-  brle_enc1(block + 5, 0, 2);
-  for (uint8_t *p = block; p < block + 8; ++p)
-    printf("%d ", *p);
-  printf("\n");
-  brle_enc1(block + 6, 1, 3);
-  for (uint8_t *p = block; p < block + 8; ++p)
-    printf("%d ", *p);
-  printf("\n");
-  brle_enc1(block + 7, 0, 4);
-  for (uint8_t *p = block; p < block + 8; ++p)
-    printf("%d ", *p);
-  printf("\n");
-  free(block);
-  return 0;
-}
-**/

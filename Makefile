@@ -15,7 +15,7 @@ all: ppp
 debug: CFLAGS+=-DDEBUG -g -O0
 debug: ppp
 
-ppp:brle.o rle.o rlcsa.o main.o
+ppp:rle.o rlcsa.o main.o
 		$(CC) $(CFLAGS) $(DFLAGS) $^ -o $@ $(LIBS)
 
 # brle.o:brle.h
