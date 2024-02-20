@@ -24,10 +24,13 @@ typedef struct ss_ranges {
 } ss_ranges;
 
 typedef struct {
-  uint64_t *cnts;
-  uint64_t *C;
-  rle_t *bits[6];
-  int64_t *end_cnts[6];
+  uint64_t *size;       // allocated size per bitvector
+  uint64_t *length;     // length of bitvector (actually used)
+  uint64_t *cnts;       // counts for each symbol
+  uint64_t *C;          // C array
+  rle_t *bits[6];       // the rle bit vectors
+  int64_t *end_cnts[6]; // current counts at the end of the vector (used while
+                        // inserting runs)
 } rlcsa_t;
 
 /**
@@ -36,16 +39,16 @@ typedef struct {
  * @param size      maximum size for bit vectors
  * @param sd        sampling distance
  */
-rlcsa_t *rlc_init(uint32_t size, uint32_t sd);
+rlcsa_t *rlc_init(uint64_t size, uint32_t sd);
 
 /**
- * Insert one string into the index
+ * Insert multiple strings into the index (each one 0-terminated)
  *
  * @param rlc       the index
  * @param seq       the input string (no $-terminated)
  * @param n         input string length
  */
-int rlc_insert(rlcsa_t *rlc, const uint8_t *seq, int n);
+int rlc_insert(rlcsa_t *rlc, const uint8_t *seq, uint n);
 
 /**
  * Return q-interval for a character

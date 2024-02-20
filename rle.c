@@ -6,7 +6,7 @@
 
 const uint8_t rle_auxtab[8] = {0x01, 0x11, 0x21, 0x31, 0x03, 0x13, 0x07, 0x17};
 
-rle_t *rle_init(uint32_t size, int sd) {
+rle_t *rle_init(uint64_t size, int sd) {
   rle_t *rle = (rle_t *)calloc(1, sizeof(rle_t));
   rle->max_size = size;
   rle->sd = sd;
@@ -147,7 +147,7 @@ void rle_store_block(rle_t *rle, uint8_t *q, uint32_t p, uint32_t r) {
   ++rle->b;
 }
 
-void rle_freeze(rle_t *rle) {
+void rle_sample(rle_t *rle) {
   const uint32_t *n = (const uint32_t *)rle->vector;
   const uint8_t *q = rle->vector + 4, *end = rle->vector + 4 + *n;
   uint8_t *pq = q;

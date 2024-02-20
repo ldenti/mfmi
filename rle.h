@@ -28,7 +28,7 @@ typedef struct {
  * @param size      maximum size for bit vectors
  * @param sd        sampling distance
  */
-rle_t *rle_init(uint32_t size, int sd);
+rle_t *rle_init(uint64_t size, int sd);
 
 /**
  * Destroy the rle vector
