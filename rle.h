@@ -97,14 +97,14 @@ extern const uint8_t rle_auxtab[8];
 // decode one run (c,l) and move the pointer p
 #define rle_dec1(p, c, l)                                                      \
   do {                                                                         \
-    (c) = *(p) & 7;                                                            \
-    if (LIKELY((*(p) & 0x80) == 0)) {                                          \
+    (c) = *(p)&7;                                                              \
+    if (LIKELY((*(p)&0x80) == 0)) {                                            \
       (l) = *(p)++ >> 3;                                                       \
     } else if (LIKELY(*(p) >> 5 == 6)) {                                       \
-      (l) = (*(p) & 0x18L) << 3L | ((p)[1] & 0x3fL);                           \
+      (l) = (*(p)&0x18L) << 3L | ((p)[1] & 0x3fL);                             \
       (p) += 2;                                                                \
     } else {                                                                   \
-      int n = ((*(p) & 0x10) >> 2) + 4;                                        \
+      int n = ((*(p)&0x10) >> 2) + 4;                                          \
       (l) = *(p)++ >> 3 & 1;                                                   \
       while (--n)                                                              \
         (l) = ((l) << 6) | (*(p)++ & 0x3fL);                                   \

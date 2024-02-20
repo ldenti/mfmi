@@ -88,10 +88,10 @@ int main(int argc, char *argv[]) {
     kputsn((char *)s, ks->seq.l + 1, &buf);
   }
 
-//  printf("%d\n", buf.l);
-//  for (i = 0; i < buf.l + 1; ++i)
-//    printf("%d", buf.s[i]);
-//  printf("\n");
+  //  printf("%d\n", buf.l);
+  //  for (i = 0; i < buf.l + 1; ++i)
+  //    printf("%d", buf.s[i]);
+  //  printf("\n");
 
   rlc_insert(rlc, (const uint8_t *)buf.s, buf.l);
 
