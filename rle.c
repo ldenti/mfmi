@@ -149,15 +149,12 @@ void rle_store_block(rle_t *rle, uint8_t *q, uint32_t p, uint32_t r) {
 
 void rle_sample(rle_t *rle) {
   const uint32_t *n = (const uint32_t *)rle->vector;
-  const uint8_t *q = rle->vector + 4, *end = rle->vector + 4 + *n;
+  uint8_t *q = rle->vector + 4, *end = rle->vector + 4 + *n;
   uint8_t *pq = q;
-  int expected_blocks = *n / rle->sd;
-  // printf("Freezing: %d / %d = %d\n", *n, rle->sd, expected_blocks);
   int i = 0;          // each run can take more bytes, this counts the bytes
   int rank = 0;       // sample for rank
   int currp = 0;      // sample for positions
   int currb_rank = 0; // rank in current block
-  int currb_l = 0;
   uint8_t c;
   uint32_t l;
   while (q < end) {
@@ -210,7 +207,6 @@ void rle_print(const rle_t *rle, int expand) {
 
 void rle_rank1a(const rle_t *rle, int64_t x, int64_t *cx) {
   // rle_print(rle, 1);
-  uint32_t *n = (uint32_t *)rle->vector;
   // int _b = x / rle->sd; // block index
   int b = -1;
   for (int i = 0; i < rle->b; ++i) {

@@ -1,9 +1,15 @@
 #include "rlcsa.h"
 
-int sat_comparator(const sa_t *a, const sa_t *b) { return a->b - b->b; }
+int sat_comparator(const void *pa, const void *pb) {
+  sa_t a = *(skew_pair *)pa;
+  sa_t b = *(skew_pair *)pb;
+  return a.b - b.b;
+}
 
-int skew_comparator(const skew_pair *a, const skew_pair *b) {
-  return a->b - b->b;
+int skew_comparator(const void *pa, const void *pb) {
+  skew_pair a = *(skew_pair *)pa;
+  skew_pair b = *(skew_pair *)pb;
+  return a.b - b.b;
 }
 
 uint32_t setRanks(skew_pair *pairs, uint32_t *keys, uint64_t n,

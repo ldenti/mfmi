@@ -24,7 +24,7 @@ typedef struct ss_ranges {
 } ss_ranges;
 
 typedef struct {
-  uint64_t *size;       // allocated size per bitvector
+  uint64_t size;        // allocated size per bitvector
   uint64_t *length;     // length of bitvector (actually used)
   uint64_t *cnts;       // counts for each symbol
   uint64_t *C;          // C array
