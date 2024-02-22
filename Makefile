@@ -1,7 +1,5 @@
 CC=			gcc
 CFLAGS=		-Wall #-fno-inline-functions -fno-inline-functions-called-once
-DFLAGS=
-INCLUDES=	
 LIBS=		-lz -lpthread
 
 .SUFFIXES:.c .o
@@ -10,18 +8,18 @@ LIBS=		-lz -lpthread
 		$(CC) -c $(CFLAGS) $(DFLAGS) $(INCLUDES) $< -o $@
 
 all: CFLAGS+=-g -O3 -DNDEBUG
-all: ppp
+all: mfmi
 
 debug: CFLAGS+=-DDEBUG -g -O0
-debug: ppp
+debug: mfmi
 
-ppp:rle.o rlcsa.o main.o
+mfmi:rle.o rope.o rlcsa.o main.o
 		$(CC) $(CFLAGS) $(DFLAGS) $^ -o $@ $(LIBS)
 
-# brle.o:brle.h
 rle.o:rle.h
-rlcsa.o:rle.h kvec.h rlcsa.h
-main.o:rle.h rlcsa.h
+rope.o:rle.h rope.h
+rlcsa.o:rope.h kvec.h rlcsa.h
+main.o:rlcsa.h
 
 clean:
-		rm -rf *.o ppp
+		rm -rf *.o mfmi

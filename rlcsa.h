@@ -6,11 +6,11 @@
 #include <stdlib.h>
 
 #include "kvec.h"
-#include "rle.h"
+#include "rope.h"
 
 typedef struct {
-  uint32_t a;
-  uint32_t b;
+    uint32_t a;
+    uint32_t b;
 } sa_t;
 
 // CHECKME: do we want these?
@@ -20,17 +20,20 @@ typedef sa_t ss_range;
 // struct to allow kvec to be passed around
 // (see https://github.com/attractivechaos/klib/issues/144)
 typedef struct ss_ranges {
-  kvec_t(ss_range);
+    kvec_t(ss_range);
 } ss_ranges;
 
+typedef struct uint_kv {
+    kvec_t(uint32_t);
+} uint_kv;
+
 typedef struct {
-  uint64_t size;        // allocated size per bitvector
-  uint64_t *length;     // length of bitvector (actually used)
-  uint64_t *cnts;       // counts for each symbol
-  uint64_t *C;          // C array
-  rle_t *bits[6];       // the rle bit vectors
-  int64_t *end_cnts[6]; // current counts at the end of the vector (used while
-                        // inserting runs)
+    uint64_t size;        // allocated size per bitvector
+    uint32_t sd;          // sampling distance
+    uint64_t *length;     // length of bitvector (actually used, in bytes)
+    uint64_t *cnts;       // counts for each symbol
+    uint64_t *C;          // C array
+    rope_t *bits[6];      // the bit vectors
 } rlcsa_t;
 
 /**
@@ -65,7 +68,7 @@ sa_t rlc_init_interval(rlcsa_t *rlc, uint8_t c);
  * @param range     a q-interval
  * @param c         a character
  */
-sa_t LF(rlcsa_t *rlc, sa_t range, uint8_t c);
+sa_t rlc_lf(rlcsa_t *rlc, sa_t range, uint8_t c);
 
 /**
  * Destroy the rlcsa index

@@ -1,13 +1,15 @@
+# MFMI
+
 ```
 make
-./ppp [single-sequence.fa] [queries.fq]
+./mfmi example/4.fa.gz example/reads.fq.gz | sort | uniq -c
 ```
 
-- [ ] code refactoring
-- [ ] rank on interval
-- [ ] iterate from begin/end of vector
+- [X] code refactoring
+- [X] rank on interval
+- [X] iterate from begin/end of vector
 - [ ] tests
-- [ ] bit rle (7+1)
+- [ ] bit rope and rle (7+1)
 - [ ] rlcsa merging
 - [ ] parallelize index construction
 - [ ] fmd-index
