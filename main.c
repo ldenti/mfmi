@@ -48,13 +48,14 @@ double realtime() {
 }
 
 int main(int argc, char *argv[]) {
+    (void) argc; // suppress unused parameter warning
     double t_start;
     t_start = realtime();
 
     char *fa_path = argv[1]; // reference
     char *fq_path = argv[2]; // perfect reads
 
-    rlcsa_t *rlc = rlc_init((uint64_t) 1 << 32, 512);
+    rlcsa_t *rlc = rlc_init();
 
     gzFile fp = gzopen(fa_path, "rb");
     kseq_t *ks = kseq_init(fp);
@@ -88,8 +89,7 @@ int main(int argc, char *argv[]) {
     //  for (i = 0; i < buf.l + 1; ++i)
     //    printf("%d", buf.s[i]);
     //  printf("\n");
-
-    rlc_insert(rlc, (const uint8_t *) buf.s, buf.l);
+    rlc_insert(rlc, (const uint8_t *) buf.s, (int64_t)buf.l);
 
     // rlcsa_t *merged = rlc_merge(rlc, rlc, (const uint8_t *)buf.s, buf.l);
 
@@ -106,7 +106,7 @@ int main(int argc, char *argv[]) {
     //     fprintf(stderr, "%d: [%d, %d]\n", c, interval.a, interval.b);
     // }
 
-    int hit;
+    int errors = 0;
     fp = gzopen(fq_path, "rb");
     ks = kseq_init(fp);
     while ((l = kseq_read(ks)) >= 0) {
@@ -118,18 +118,18 @@ int main(int argc, char *argv[]) {
         i = l - 1;
         interval = rlc_init_interval(rlc, s[i]);
         --i;
-        hit = 1;
         for (; i >= 0; --i) {
             interval = rlc_lf(rlc, interval, s[i]);
             if (interval.b < interval.a) {
-                hit = 0;
+                errors += 1;
                 break;
             }
         }
-        printf("%d\n", hit);
     }
+    printf("Errors: %d\n", errors);
 
     rlc_destroy(rlc);
+    // rlc_destroy(merged);
 
     fprintf(stderr, "\n[M::%s] Real time: %.3f sec; CPU: %.3f sec\n", __func__,
             realtime() - t_start, cputime());

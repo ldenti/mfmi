@@ -3,23 +3,23 @@
 int sat_comparator(const void *pa, const void *pb) {
     sa_t a = *(skew_pair *) pa;
     sa_t b = *(skew_pair *) pb;
-    return a.b - b.b;
+    return (int) (a.b - b.b);
 }
 
 int skew_comparator(const void *pa, const void *pb) {
     skew_pair a = *(skew_pair *) pa;
     skew_pair b = *(skew_pair *) pb;
-    return a.b - b.b;
+    return (int) (a.b - b.b);
 }
 
 int comparator(const void *pa, const void *pb) {
-    uint64_t a = *(uint64_t *) pa;
-    uint64_t b = *(uint64_t *) pb;
-    return a - b;
+    int64_t a = *(int64_t *) pa;
+    int64_t b = *(int64_t *) pb;
+    return (int) (a - b);
 }
 
-uint32_t setRanks(skew_pair *pairs, uint32_t *keys, uint64_t n,
-                  ss_ranges *unsorted) {// uint8_t threads, uint32_t chunk) {
+int64_t setRanks(skew_pair *pairs, int64_t *keys,
+                 ss_ranges *unsorted) {// int64_t n, uint8_t threads, uint32_t chunk) {
     ss_ranges buffer;
     kv_init(buffer);
     uint32_t total = 0;
@@ -33,7 +33,7 @@ uint32_t setRanks(skew_pair *pairs, uint32_t *keys, uint64_t n,
     // }
 
     // #pragma omp parallel for schedule(dynamic, chunk)
-    for (uint32_t i = 0; i < kv_size(*unsorted); ++i) {
+    for (int64_t i = 0; i < kv_size(*unsorted); ++i) {
         // uint thread = omp_get_thread_num();
         skew_pair *prev = pairs + kv_A(*unsorted, i).a;
         keys[prev->a] = kv_A(*unsorted, i).a;
@@ -69,14 +69,15 @@ uint32_t setRanks(skew_pair *pairs, uint32_t *keys, uint64_t n,
     return total;
 }
 
-sa_t *prefixDoubling(sa_t *pairs, uint32_t *keys, ss_ranges *unsorted, uint n,
-                     uint threads, uint total, uint h) {
+sa_t *prefixDoubling(sa_t *pairs, int64_t *keys, ss_ranges *unsorted, uint n,
+                     uint total, uint h) { //uint threads
     // Double prefix length until sorted
     // TODO: parallelize
+    int64_t i;
     while (total > 0) {
         // uint chunk = std::max((size_t)1, unsorted.size() / (threads * threads));
         // #pragma omp parallel for schedule(dynamic, chunk)
-        for (uint32_t i = 0; i < kv_size(*unsorted); ++i) {
+        for (i = 0; i < kv_size(*unsorted); ++i) {
             // Set sort keys for the current range.
             for (sa_t *curr = pairs + kv_A(*unsorted, i).a;
                  curr <= pairs + kv_A(*unsorted, i).b; ++curr)
@@ -86,30 +87,31 @@ sa_t *prefixDoubling(sa_t *pairs, uint32_t *keys, ss_ranges *unsorted, uint n,
                   kv_A(*unsorted, i).b - kv_A(*unsorted, i).a + 1, sizeof(sa_t),
                   sat_comparator);// TODO: change name of comparator
         }
-        total = setRanks(pairs, keys, n, unsorted);//, threads, chunk);
+        total = setRanks(pairs, keys, unsorted);//, threads, chunk);
         h *= 2;
         fprintf(stderr, "Sorted with %d, unsorted total = %d (%ld ranges)\n", h,
                 total, kv_size(*unsorted));
     }
     // TODO: parallelize
     // #pragma omp parallel for schedule(static)
-    for (uint i = 0; i < n; i++)
+    for (i = 0; i < n; i++)
         pairs[i].b = keys[i];
     return pairs;
 }
 
-sa_t *simpleSuffixSort(const uint8_t *sequence, uint32_t n, uint8_t threads) {
+sa_t *simpleSuffixSort(const uint8_t *sequence, int64_t n) { // uint8_t threads
     if (sequence == 0 || n == 0)
-        return 0;
+        // TODO: fail more gracefully
+        exit(1);
     ss_ranges unsorted;
     kv_init(unsorted);
     skew_pair *pairs = (skew_pair *) calloc(n + 1, sizeof(skew_pair));
-    uint32_t *keys =
-            (uint32_t *) calloc(n + 1, sizeof(uint32_t));// In text order.
+    int64_t *keys =
+            (int64_t *) calloc(n + 1, sizeof(int64_t));// In text order.
     // Initialize pairs.
     // TODO: parallelize
     // #pragma omp parallel for schedule(static)
-    for (uint32_t i = 0; i < n; ++i) {
+    for (int64_t i = 0; i < n; ++i) {
         pairs[i].a = i;
         pairs[i].b = sequence[i];
     }
@@ -118,53 +120,35 @@ sa_t *simpleSuffixSort(const uint8_t *sequence, uint32_t n, uint8_t threads) {
     qsort(pairs, n, sizeof(skew_pair), skew_comparator);
     ss_range a = (ss_range) {0, n - 1};
     kv_push(ss_range, unsorted, a);
-    uint32_t total = setRanks(pairs, keys, n, &unsorted);// threads, 1);
-    sa_t *sa = prefixDoubling(pairs, keys, &unsorted, n, threads, total, 1);
+    int64_t total = setRanks(pairs, keys, &unsorted);// threads, 1);
+    sa_t *sa = prefixDoubling(pairs, keys, &unsorted, n, total, 1); // threads
     // TODO: doubling vs tripling?
     free(keys);
     kv_destroy(unsorted);
     return sa;
 }
 
-rlcsa_t *rlc_init(uint64_t size, uint32_t sd) {
+rlcsa_t *rlc_init() {
     rlcsa_t *rlc;
     rlc = calloc(1, sizeof(rlcsa_t));
-    rlc->size = size;
-    rlc->sd = sd;
-    rlc->cnts = calloc(6, sizeof(uint64_t));
-    rlc->C = calloc(6, sizeof(uint64_t));
+    rlc->cnts = calloc(6, sizeof(int64_t));
+    rlc->C = calloc(6, sizeof(int64_t));
     for (int c = 0; c < 6; ++c)
         rlc->bits[c] = rope_init(ROPE_DEF_MAX_NODES, ROPE_DEF_BLOCK_LEN);
     return rlc;
 }
 
 void rlc_destroy(rlcsa_t *rlc) {
-    free(rlc->C);
     free(rlc->cnts);
+    free(rlc->C);
     for (int c = 0; c < 6; ++c)
         rope_destroy(rlc->bits[c]);
     free(rlc);
 }
 
-sa_t rlc_init_interval(rlcsa_t *rlc, uint8_t c) {
-    return (sa_t) {rlc->C[c], rlc->C[c] + rlc->cnts[c] - 1};
-}
-
-sa_t rlc_lf(rlcsa_t *rlc, sa_t range, uint8_t c) {
-    int64_t cx[6] = {0, 0, 0, 0, 0, 0};
-    int64_t cy[6] = {0, 0, 0, 0, 0, 0};
-    rope_rank2a(rlc->bits[c], range.a, range.b + 1, cx, cy);
-    return (sa_t) {rlc->C[c] + cx[1], rlc->C[c] + cy[1] - 1};
-}
-
-uint32_t LF_i(const rlcsa_t *rlc, uint32_t x, uint8_t c) {
-    int64_t cx[6] = {0, 0, 0, 0, 0, 0};
-    rope_rank1a(rlc->bits[c], x + 1, cx);
-    return rlc->C[c] + cx[1] - 1; // + rlc_nsep(rlc)
-}
-
-int rlc_insert(rlcsa_t *rlc, const uint8_t *sequence, uint n) {
+int rlc_insert(rlcsa_t *rlc, const uint8_t *sequence, int64_t n) {
     int i, c;
+    rlc->l = n;
 
     // Build C
     for (i = 0; i < n; ++i)
@@ -174,7 +158,7 @@ int rlc_insert(rlcsa_t *rlc, const uint8_t *sequence, uint n) {
         rlc->C[c] = rlc->C[c - 1] + rlc->cnts[c - 1];
 
     // Build SA
-    sa_t *sa = simpleSuffixSort(sequence, n, 1);
+    sa_t *sa = simpleSuffixSort(sequence, n); // threads
 
     // Build Psi
     // TODO: #pragma omp parallel for schedule(static)
@@ -189,9 +173,9 @@ int rlc_insert(rlcsa_t *rlc, const uint8_t *sequence, uint n) {
 
         sa_t *curr = sa + rlc->C[c];
         sa_t *limit = curr + rlc->cnts[c];
-        uint64_t last_e = 0;
-        uint64_t curr_s = curr->a;
-        uint64_t curr_l = 1;
+        int64_t last_e = 0;
+        int64_t curr_s = curr->a;
+        int64_t curr_l = 1;
         ++curr;
 
         for (; curr < limit; ++curr) {
@@ -217,4 +201,16 @@ int rlc_insert(rlcsa_t *rlc, const uint8_t *sequence, uint n) {
     free(sa);
 
     return 0;
+}
+
+sa_t rlc_init_interval(rlcsa_t *rlc, uint8_t c) {
+    return (sa_t) {rlc->C[c], rlc->C[c] + rlc->cnts[c] - 1};
+}
+
+sa_t rlc_lf(rlcsa_t *rlc, sa_t range, uint8_t c) {
+    // FIXME: move these into rlcsa_t?
+    int64_t cx[6] = {0, 0, 0, 0, 0, 0};
+    int64_t cy[6] = {0, 0, 0, 0, 0, 0};
+    rope_rank2a(rlc->bits[c], range.a, range.b + 1, cx, cy);
+    return (sa_t) {rlc->C[c] + cx[1], rlc->C[c] + cy[1] - 1};
 }
