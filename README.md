@@ -10,6 +10,6 @@ make
 - [X] iterate from begin/end of vector
 - [ ] tests
 - [ ] bit rope and rle (7+1)
-- [ ] rlcsa merging
+- [X] rlcsa merging
 - [ ] parallelize index construction
 - [ ] fmd-index

@@ -56,6 +56,7 @@ int main(int argc, char *argv[]) {
     char *fq_path = argv[2]; // perfect reads
 
     rlcsa_t *rlc = rlc_init();
+    rlcsa_t *rlc2 = rlc_init();
 
     gzFile fp = gzopen(fa_path, "rb");
     kseq_t *ks = kseq_init(fp);
@@ -89,9 +90,10 @@ int main(int argc, char *argv[]) {
     //  for (i = 0; i < buf.l + 1; ++i)
     //    printf("%d", buf.s[i]);
     //  printf("\n");
-    rlc_insert(rlc, (const uint8_t *) buf.s, (int64_t)buf.l);
+    rlc_insert(rlc, (const uint8_t *) buf.s, (int64_t) buf.l);
+    rlc_insert(rlc2, (const uint8_t *) buf.s, (int64_t) buf.l);
 
-    // rlcsa_t *merged = rlc_merge(rlc, rlc, (const uint8_t *)buf.s, buf.l);
+    rlc_merge(rlc, rlc2, (const uint8_t *) buf.s);
 
     free(buf.s);
     kseq_destroy(ks);
@@ -129,7 +131,6 @@ int main(int argc, char *argv[]) {
     printf("Errors: %d\n", errors);
 
     rlc_destroy(rlc);
-    // rlc_destroy(merged);
 
     fprintf(stderr, "\n[M::%s] Real time: %.3f sec; CPU: %.3f sec\n", __func__,
             realtime() - t_start, cputime());

@@ -6,6 +6,7 @@
 
 #include "kvec.h"
 #include "rope.h"
+#include "rle.h"
 
 typedef struct {
     int64_t a;
@@ -23,8 +24,8 @@ typedef struct ss_ranges {
 } ss_ranges;
 
 typedef struct uint_kv {
-    kvec_t(uint32_t);
-} uint_kv;
+    kvec_t(int64_t);
+} int_kv;
 
 typedef struct {
     int64_t l;           // length of bitvectors in bits (same as length of indexed text)
@@ -69,5 +70,13 @@ sa_t rlc_init_interval(rlcsa_t *rlc, uint8_t c);
  */
 sa_t rlc_lf(rlcsa_t *rlc, sa_t range, uint8_t c);
 
+/**
+ * Merge rlc2 into rlc1. rlc2 is freed
+ *
+ * @param rlc1      first index
+ * @param rlc2      second index
+ * @param seq       the text of rlc2
+ */
+void rlc_merge(rlcsa_t *rlc, rlcsa_t *increment, const uint8_t *seq);
 
 #endif
