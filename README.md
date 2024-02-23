@@ -2,7 +2,7 @@
 
 ```
 make
-./mfmi example/4.fa.gz example/reads.fq.gz | sort | uniq -c
+./mfmi example/4.fa.gz example/reads.fq.gz
 ```
 
 - [X] code refactoring
