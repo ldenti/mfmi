@@ -125,8 +125,8 @@ void rle_print(const uint8_t *block, int expand)
 		int c;
 		int64_t l, x;
 		rle_dec1(q, c, l);
-		if (expand) for (x = 0; x < l; ++x) putchar("$ACGTN"[c]);
-		else printf("%c%ld", "$ACGTN"[c], (long)l);
+		if (expand) for (x = 0; x < l; ++x) putchar("01XXXX"[c]);
+		else printf("%c%ld", "01XXXX"[c], (long)l);
 	}
 	putchar('\n');
 }
