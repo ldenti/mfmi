@@ -1,22 +1,8 @@
 #include "rlcsa.h"
 
-int sat_comparator(const void *pa, const void *pb) {
-    sa_t a = *(skew_pair *) pa;
-    sa_t b = *(skew_pair *) pb;
-    return (int) (a.b - b.b);
-}
+KSORT_INIT(pair, pair_t, pair_lt)
 
-int skew_comparator(const void *pa, const void *pb) {
-    skew_pair a = *(skew_pair *) pa;
-    skew_pair b = *(skew_pair *) pb;
-    return (int) (a.b - b.b);
-}
-
-int comparator(const void *pa, const void *pb) {
-    int64_t a = *(int64_t *) pa;
-    int64_t b = *(int64_t *) pb;
-    return (int) (a - b);
-}
+KSORT_INIT_GENERIC(int64_t)
 
 int64_t setRanks(skew_pair *pairs, int64_t *keys,
                  ss_ranges *unsorted) {// int64_t n, uint8_t threads, uint32_t chunk) {
@@ -82,10 +68,7 @@ sa_t *prefixDoubling(sa_t *pairs, int64_t *keys, ss_ranges *unsorted, uint64_t n
             for (sa_t *curr = pairs + kv_A(*unsorted, i).a;
                  curr <= pairs + kv_A(*unsorted, i).b; ++curr)
                 curr->b = keys[curr->a + h];
-            // TODO: qsort vs ksort
-            qsort(pairs + kv_A(*unsorted, i).a,
-                  kv_A(*unsorted, i).b - kv_A(*unsorted, i).a + 1, sizeof(sa_t),
-                  sat_comparator);// TODO: change name of comparator
+            ks_mergesort(pair, kv_A(*unsorted, i).b - kv_A(*unsorted, i).a + 1, pairs + kv_A(*unsorted, i).a, 0);
         }
         total = setRanks(pairs, keys, unsorted);//, threads, chunk);
         h *= 2;
@@ -116,8 +99,7 @@ sa_t *simpleSuffixSort(const uint8_t *sequence, int64_t n) { // uint8_t threads
         pairs[i].b = sequence[i];
     }
     // Sort according to first character
-    // TODO: ksort vs qsort - ks_mergesort(skewpair, kv_size(pairs), pairs, 0);
-    qsort(pairs, n, sizeof(skew_pair), skew_comparator);
+    ks_mergesort(pair, n, pairs, 0);
     ss_range a = (ss_range) {0, n - 1};
     kv_push(ss_range, unsorted, a);
     int64_t total = setRanks(pairs, keys, &unsorted);// threads, 1);
@@ -301,7 +283,8 @@ void rlc_merge(rlcsa_t *rlc1, rlcsa_t *rlc2, const uint8_t *seq) { // uint8_t th
     kv_init(separators);
     int64_t *marks = get_marks(rlc1, seq, rlc2->l, separators);
     // TODO: parallelize
-    qsort(marks, rlc2->l, sizeof(int64_t), comparator);
+    // radix_sort(marks, 0, rlc2->l, 24);
+    ks_mergesort(int64_t, rlc2->l, marks, 0);
     // #pragma omp parallel for schedule(static)
     for (i = 0; i < rlc2->l; ++i)
         marks[i] += i + 1;

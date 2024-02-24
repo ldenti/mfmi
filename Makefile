@@ -16,10 +16,5 @@ debug: mfmi
 mfmi:rle.o rope.o rlcsa.o main.o
 		$(CC) $(CFLAGS) $(DFLAGS) $^ -o $@ $(LIBS)
 
-rle.o:rle.h
-rope.o:rle.h rope.h
-rlcsa.o:rope.h kvec.h rlcsa.h
-main.o:rlcsa.h
-
 clean:
 		rm -rf *.o mfmi

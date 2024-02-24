@@ -5,17 +5,23 @@
 #include <stdlib.h>
 
 #include "kvec.h"
+#include "ksort.h"
 #include "rope.h"
 #include "rle.h"
+
+// void radix_sort(int64_t *array, int64_t offset, int64_t end, int shift);
 
 typedef struct {
     int64_t a;
     int64_t b;
-} sa_t;
+} pair_t;
+
+#define pair_lt(x, y) ((x).b < (y).b)
 
 // FIXME: do we want these?
-typedef sa_t skew_pair;
-typedef sa_t ss_range;
+typedef pair_t sa_t;
+typedef pair_t skew_pair;
+typedef pair_t ss_range;
 
 // structs to allow kvec to be passed around
 // (see https://github.com/attractivechaos/klib/issues/144)
