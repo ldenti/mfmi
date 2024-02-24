@@ -54,9 +54,9 @@ int main(int argc, char *argv[]) {
 
     char *fa_path = argv[1]; // reference
     char *fq_path = argv[2]; // perfect reads
+    int64_t m = (int64_t) (.97 * 10 * 1024 * 1024 * 1024) + 1;
 
     rlcsa_t *rlc = rlc_init();
-    rlcsa_t *rlc2 = rlc_init();
 
     gzFile fp = gzopen(fa_path, "rb");
     kseq_t *ks = kseq_init(fp);
@@ -84,17 +84,22 @@ int main(int argc, char *argv[]) {
         if (l & 1)
             s[i] = (s[i] >= 1 && s[i] <= 4) ? 5 - s[i] : s[i];
         kputsn((char *) s, ks->seq.l + 1, &buf);
+
+        if (buf.l >= m) {
+            double ct = cputime(), rt = realtime();
+            rlc_insert(rlc, (const uint8_t *) buf.s, (int64_t) buf.l);
+            fprintf(stderr, "[M::%s] inserted %ld symbols in %.3f sec, %.3f CPU sec\n",
+                    __func__, (long) buf.l, realtime() - rt, cputime() - ct);
+            buf.l = 0;
+        }
     }
-
-    //  printf("%d\n", buf.l);
-    //  for (i = 0; i < buf.l + 1; ++i)
-    //    printf("%d", buf.s[i]);
-    //  printf("\n");
-    rlc_insert(rlc, (const uint8_t *) buf.s, (int64_t) buf.l);
-    rlc_insert(rlc2, (const uint8_t *) buf.s, (int64_t) buf.l);
-
-    rlc_merge(rlc, rlc2, (const uint8_t *) buf.s);
-
+    if (buf.l) {
+        double ct = cputime(), rt = realtime();
+        rlc_insert(rlc, (const uint8_t *) buf.s, (int64_t) buf.l);
+        fprintf(stderr, "[M::%s] inserted %ld symbols in %.3f sec, %.3f CPU sec\n",
+                __func__, (long) buf.l, realtime() - rt, cputime() - ct);
+        buf.l = 0;
+    }
     free(buf.s);
     kseq_destroy(ks);
     gzclose(fp);

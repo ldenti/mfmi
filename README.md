@@ -11,7 +11,8 @@ make
 - [ ] tests
 - [ ] bit rope and rle (7+1)
 - [X] rlcsa merging
-- [ ] "iterative" rlcsa construction
+- [X] "iterative" rlcsa construction
+- [ ] more fastas
 - [ ] dump/load rlcsa
 - [ ] parallelize index construction
 - [ ] fmd-index

@@ -128,11 +128,12 @@ void rlc_destroy(rlcsa_t *rlc) {
     free(rlc);
 }
 
-int rlc_insert(rlcsa_t *rlc, const uint8_t *sequence, int64_t n) {
+void rlc_build(rlcsa_t *rlc, const uint8_t *sequence, int64_t n) {
     int i, c;
     rlc->l = n;
 
     // Build C
+    fprintf(stderr, "Building C array..\n");
     for (i = 0; i < n; ++i)
         ++rlc->cnts[sequence[i]];
     rlc->C[0] = 0;
@@ -140,19 +141,21 @@ int rlc_insert(rlcsa_t *rlc, const uint8_t *sequence, int64_t n) {
         rlc->C[c] = rlc->C[c - 1] + rlc->cnts[c - 1];
 
     // Build SA
+    fprintf(stderr, "Building SA..\n");
     sa_t *sa = simpleSuffixSort(sequence, n); // threads
 
     // Build Psi
+    fprintf(stderr, "Building PSI..\n");
     // TODO: #pragma omp parallel for schedule(static)
     for (i = 0; i < n; ++i)
         sa[i].a = sa[(sa[i].a + 1) % n].b;
 
     // Build RLCSA
     // TODO: #pragma omp parallel for schedule(dynamic, 1)
-    for (c = 0; c < 6; ++c) {// TODO: hardcoded
+    for (c = 1; c < 6; ++c) {// TODO: start from 1 or 0?
         if (rlc->cnts[c] == 0)
             continue;
-
+        fprintf(stderr, "Building rope for c=%c..\n", "$ACGTN"[c]);
         sa_t *curr = sa + rlc->C[c];
         sa_t *limit = curr + rlc->cnts[c];
         int64_t last_e = 0;
@@ -164,9 +167,8 @@ int rlc_insert(rlcsa_t *rlc, const uint8_t *sequence, int64_t n) {
             if (curr->a == curr_s + curr_l)
                 ++curr_l;
             else {
-                if ((last_e == 0 && curr_s > 0) || last_e != 0) {
+                if ((last_e == 0 && curr_s > 0) || last_e != 0)
                     rope_insert_run(rlc->bits[c], last_e, 0, curr_s - last_e, 0);
-                }
                 rope_insert_run(rlc->bits[c], curr_s, 1, curr_l, 0);
                 last_e = curr_s + curr_l;
                 curr_s = curr->a;
@@ -181,8 +183,18 @@ int rlc_insert(rlcsa_t *rlc, const uint8_t *sequence, int64_t n) {
             rope_insert_run(rlc->bits[c], curr_s, 0, n - curr_s, 0);
     }
     free(sa);
+}
 
-    return 0;
+void rlc_insert(rlcsa_t *rlc, const uint8_t *sequence, int64_t n) {
+    if (rlc->l == 0) {
+        fprintf(stderr, "\n--- Building new RLCSA..\n");
+        rlc_build(rlc, sequence, n);
+        return;
+    }
+    fprintf(stderr, "\n--- Inserting into existing RLCSA..\n");
+    rlcsa_t *rlc2 = rlc_init();
+    rlc_build(rlc2, sequence, n);
+    rlc_merge(rlc, rlc2, sequence);
 }
 
 sa_t rlc_init_interval(rlcsa_t *rlc, uint8_t c) {

@@ -57,7 +57,7 @@ void rlc_destroy(rlcsa_t *rlc);
  * @param seq       the input string(s)
  * @param n         input string length (last 0 not included)
  */
-int rlc_insert(rlcsa_t *rlc, const uint8_t *seq, int64_t n);
+void rlc_insert(rlcsa_t *rlc, const uint8_t *seq, int64_t n);
 
 /**
  * Return q-interval for a character
