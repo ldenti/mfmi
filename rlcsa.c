@@ -172,6 +172,35 @@ void rlc_destroy(rlcsa_t *rlc) {
   free(rlc);
 }
 
+int rlc_dump(rlcsa_t *rlc, const char *fn) {
+  FILE *fp = strcmp(fn, "-") ? fopen(fn, "wb") : fdopen(fileno(stdout), "wb");
+  if (fp == 0)
+    return -1;
+  fwrite("RLC\3", 1, 4, fp); // write magic
+  fwrite(&rlc->l, 8, 1, fp);
+  fwrite(rlc->C, 8, 6, fp);
+  fwrite(rlc->cnts, 8, 6, fp);
+  for (int c = 0; c < 6; ++c)
+    rope_dump(rlc->bits[c], fp);
+  fclose(fp);
+  return 1;
+}
+
+rlcsa_t *rlc_restore(const char *fn) {
+  rlcsa_t *rlc = rlc_init();
+  FILE *fp;
+  if ((fp = fopen(fn, "rb")) == 0)
+    return rlc; // TODO: fail
+  char magic[4];
+  fread(magic, 1, 4, fp);
+  fread(&rlc->l, 8, 1, fp);
+  fread(rlc->C, 8, 6, fp);
+  fread(rlc->cnts, 8, 6, fp);
+  for (int c = 0; c < 6; ++c)
+    rlc->bits[c] = rope_restore(fp);
+  return rlc;
+}
+
 void rlc_build(rlcsa_t *rlc, const uint8_t *sequence, uint32_t n) {
   double t = realtime();
   uint32_t i;

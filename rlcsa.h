@@ -52,6 +52,16 @@ rlcsa_t *rlc_init();
 void rlc_destroy(rlcsa_t *rlc);
 
 /**
+ * Write rlcsa index to file
+ */
+int rlc_dump(rlcsa_t *rlc, const char *fn);
+
+/**
+ * Restore rlcsa index from file. Index must be freed by caller.
+ */
+rlcsa_t *rlc_restore(const char *fn);
+
+/**
  * Insert multiple (0-separated) strings into the index
  *
  * @param rlc       the index

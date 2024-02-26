@@ -13,7 +13,7 @@ make
 - [X] rlcsa merging
 - [X] "iterative" rlcsa construction
 - [ ] more fastas
-- [ ] dump/load rlcsa
+- [X] dump/load rlcsa
 - [ ] parallelize index construction
 - [ ] improve array sorting
 - [ ] improve rope merging
