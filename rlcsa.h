@@ -4,17 +4,17 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "kvec.h"
 #include "ksort.h"
-#include "rope.h"
+#include "kvec.h"
 #include "rle.h"
+#include "rope.h"
 #include "utils.h"
 
 // void radix_sort(int64_t *array, int64_t offset, int64_t end, int shift);
 
 typedef struct {
-    int64_t a;
-    int64_t b;
+  int64_t a;
+  int64_t b;
 } pair_t;
 
 #define pair_lt(x, y) ((x).b < (y).b)
@@ -27,19 +27,19 @@ typedef pair_t ss_range;
 // structs to allow kvec to be passed around
 // (see https://github.com/attractivechaos/klib/issues/144)
 typedef struct ss_ranges {
-    kvec_t(ss_range);
+  kvec_t(ss_range);
 } ss_ranges;
 
 typedef struct uint_kv {
-    kvec_t(int64_t);
+  kvec_t(int64_t);
 } int_kv;
 
 typedef struct {
-    int64_t l;           // length of bitvectors in bits (same as length of indexed text)
-    int64_t *cnts;       // counts for each symbol
-    int64_t *C;          // C array
-    rope_t *bits[6];      // the bit vectors
-} rlcsa_t; // the rlcsa index
+  int64_t l; // length of bitvectors in bits (same as length of indexed text)
+  int64_t *cnts;   // counts for each symbol
+  int64_t *C;      // C array
+  rope_t *bits[6]; // the bit vectors
+} rlcsa_t;         // the rlcsa index
 
 /**
  * Initialize a rlcsa
