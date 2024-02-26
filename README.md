@@ -15,4 +15,6 @@ make
 - [ ] more fastas
 - [ ] dump/load rlcsa
 - [ ] parallelize index construction
+- [ ] improve array sorting
+- [ ] improve rope merging
 - [ ] fmd-index
