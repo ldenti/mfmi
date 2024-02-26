@@ -72,17 +72,17 @@ sa_t *prefixDoubling(sa_t *pairs, int64_t *keys, ss_ranges *unsorted, uint64_t n
         }
         total = setRanks(pairs, keys, unsorted);//, threads, chunk);
         h *= 2;
-        fprintf(stderr, "Sorted with %d, unsorted total = %ld (%ld ranges)\n", h,
-                total, kv_size(*unsorted));
+        // fprintf(stderr, "Sorted with %d, unsorted total = %ld (%ld ranges)\n", h, total, kv_size(*unsorted));
     }
-    // TODO: parallelize
-    // #pragma omp parallel for schedule(static)
+
+#pragma omp parallel for num_threads(1) // schedule(static)
     for (i = 0; i < n; i++)
         pairs[i].b = keys[i];
     return pairs;
 }
 
-sa_t *simpleSuffixSort(const uint8_t *sequence, int64_t n) { // uint8_t threads
+sa_t *simpleSuffixSort(const uint8_t *sequence, int64_t n, int64_t nsep) { // uint8_t threads
+    double t = realtime();
     if (sequence == 0 || n == 0)
         // TODO: fail more gracefully
         exit(1);
@@ -91,20 +91,59 @@ sa_t *simpleSuffixSort(const uint8_t *sequence, int64_t n) { // uint8_t threads
     skew_pair *pairs = (skew_pair *) calloc(n + 1, sizeof(skew_pair));
     int64_t *keys =
             (int64_t *) calloc(n + 1, sizeof(int64_t));// In text order.
-    // Initialize pairs.
-    // TODO: parallelize
-    // #pragma omp parallel for schedule(static)
-    for (int64_t i = 0; i < n; ++i) {
-        pairs[i].a = i;
-        pairs[i].b = sequence[i];
+
+    // Determine pack factor
+    int64_t alphabet_size = nsep + 5; // FIXME: hardcoded
+    int64_t limit = INT32_MAX / alphabet_size; // FIXME
+    uint h = 1, pack_multiplier = 1;
+    while (pack_multiplier * alphabet_size <= limit) {
+        ++h;
+        pack_multiplier *= alphabet_size;
     }
+
+    // Initialize pairs
+    uint zeros = 0, value = 0;
+    for (uint i = 0; i < h; ++i) {
+        value *= alphabet_size;
+        if (sequence[i] == 0) {
+            value += zeros;
+            zeros++;
+        } else {
+            value += nsep + sequence[i] - 1;
+        }
+    }
+    for (uint i = 0; i < n - h; i++) {
+        pairs[i].a = i;
+        pairs[i].b = value;
+        value = (value % pack_multiplier) * alphabet_size;
+        if (sequence[i + h] == 0) {
+            value += zeros;
+            zeros++;
+        } else {
+            value += nsep + sequence[i + h] - 1;
+        }
+    }
+    for (uint i = n - h; i < n; i++) {
+        pairs[i].a = i;
+        pairs[i].b = value;
+        value = (value % pack_multiplier) * alphabet_size;
+    }
+    // fprintf(stderr, "[M::%s] Built %ld pairs in %.3f sec..\n", __func__, n, realtime() - t);
+    // t = realtime();
+
     // Sort according to first character
     ks_mergesort(pair, n, pairs, 0);
+    // fprintf(stderr, "[M::%s] Sorted pairs in %.3f sec..\n", __func__, realtime() - t);
+    // t = realtime();
     ss_range a = (ss_range) {0, n - 1};
     kv_push(ss_range, unsorted, a);
     int64_t total = setRanks(pairs, keys, &unsorted);// threads, 1);
-    sa_t *sa = prefixDoubling(pairs, keys, &unsorted, n, total, 1); // threads
+    // fprintf(stderr, "[M::%s] Set ranks in %.3f sec..\n", __func__, realtime() - t);
+
     // TODO: doubling vs tripling?
+    t = realtime();
+    sa_t *sa = prefixDoubling(pairs, keys, &unsorted, n, total, h); // threads
+    fprintf(stderr, "[M::%s] Prefix doubling in %.3f sec..\n", __func__, realtime() - t);
     free(keys);
     kv_destroy(unsorted);
     return sa;
@@ -128,34 +167,38 @@ void rlc_destroy(rlcsa_t *rlc) {
     free(rlc);
 }
 
-void rlc_build(rlcsa_t *rlc, const uint8_t *sequence, int64_t n) {
-    int i, c;
-    rlc->l = n;
+void rlc_build(rlcsa_t *rlc, const uint8_t *sequence, uint32_t n) {
+    double t = realtime();
+    uint32_t i;
+    uint8_t c;
+    rlc->l = (int64_t) n;
 
     // Build C
-    fprintf(stderr, "Building C array..\n");
     for (i = 0; i < n; ++i)
         ++rlc->cnts[sequence[i]];
     rlc->C[0] = 0;
     for (c = 1; c < 6; ++c)// FIXME: hardcoded
         rlc->C[c] = rlc->C[c - 1] + rlc->cnts[c - 1];
+    // fprintf(stderr, "[M::%s] Built C array in %.3f sec..\n", __func__, realtime() - t);
 
     // Build SA
-    fprintf(stderr, "Building SA..\n");
-    sa_t *sa = simpleSuffixSort(sequence, n); // threads
+    t = realtime();
+    sa_t *sa = simpleSuffixSort(sequence, n, rlc->cnts[0]); // threads
+    fprintf(stderr, "[M::%s] Built SA in %.3f sec..\n", __func__, realtime() - t);
+    t = realtime();
 
     // Build Psi
-    fprintf(stderr, "Building PSI..\n");
-    // TODO: #pragma omp parallel for schedule(static)
+#pragma omp parallel for num_threads(1) // schedule(static)
     for (i = 0; i < n; ++i)
         sa[i].a = sa[(sa[i].a + 1) % n].b;
+    // fprintf(stderr, "[M::%s] Built PSI in %.3f sec..\n", __func__, realtime() - t);
 
     // Build RLCSA
-    // TODO: #pragma omp parallel for schedule(dynamic, 1)
+    t = realtime();
+#pragma omp parallel for num_threads(1) // schedule(dynamic, 1)
     for (c = 1; c < 6; ++c) {// TODO: start from 1 or 0?
         if (rlc->cnts[c] == 0)
             continue;
-        fprintf(stderr, "Building rope for c=%c..\n", "$ACGTN"[c]);
         sa_t *curr = sa + rlc->C[c];
         sa_t *limit = curr + rlc->cnts[c];
         int64_t last_e = 0;
@@ -181,17 +224,18 @@ void rlc_build(rlcsa_t *rlc, const uint8_t *sequence, int64_t n) {
         curr_s += curr_l;
         if (n - curr_s != 0)
             rope_insert_run(rlc->bits[c], curr_s, 0, n - curr_s, 0);
+
+        // fprintf(stderr, "[M::%s] Built rope for c=%c in %.3f sec..\n", __func__, "$ACGTN"[c], realtime() - t);
+        t = realtime();
     }
     free(sa);
 }
 
 void rlc_insert(rlcsa_t *rlc, const uint8_t *sequence, int64_t n) {
     if (rlc->l == 0) {
-        fprintf(stderr, "\n--- Building new RLCSA..\n");
         rlc_build(rlc, sequence, n);
         return;
     }
-    fprintf(stderr, "\n--- Inserting into existing RLCSA..\n");
     rlcsa_t *rlc2 = rlc_init();
     rlc_build(rlc2, sequence, n);
     rlc_merge(rlc, rlc2, sequence);
@@ -288,18 +332,25 @@ void merge_ropes(rope_t *rope1, rope_t *rope2, int64_t *marks) {
 }
 
 void rlc_merge(rlcsa_t *rlc1, rlcsa_t *rlc2, const uint8_t *seq) { // uint8_t threads
+    double t = realtime();
     uint i, c;
 
     // Get $ positions (separators) and "marked positions" (marks)
     int_kv separators;
     kv_init(separators);
     int64_t *marks = get_marks(rlc1, seq, rlc2->l, separators);
+    fprintf(stderr, "[M::%s] Computed marks in %.3f sec..\n", __func__, realtime() - t);
+    t = realtime();
+
     // TODO: parallelize
     // radix_sort(marks, 0, rlc2->l, 24);
     ks_mergesort(int64_t, rlc2->l, marks, 0);
-    // #pragma omp parallel for schedule(static)
+    fprintf(stderr, "[M::%s] Sorted marks in %.3f sec..\n", __func__, realtime() - t);
+
+#pragma omp parallel for num_threads(1) // schedule(static)
     for (i = 0; i < rlc2->l; ++i)
         marks[i] += i + 1;
+    // fprintf(stderr, "[M::%s] Updated marks in %.3f sec..\n", __func__, realtime() - t);
 
     // Build C
     for (c = 0; c < 6; ++c)
@@ -307,13 +358,16 @@ void rlc_merge(rlcsa_t *rlc1, rlcsa_t *rlc2, const uint8_t *seq) { // uint8_t th
     rlc1->C[0] = 0;
     for (c = 1; c < 6; ++c)
         rlc1->C[c] = rlc1->C[c - 1] + rlc1->cnts[c - 1];
+    // fprintf(stderr, "[M::%s] Built C array in %.3f sec..\n", __func__, realtime() - t);
+    t = realtime();
 
     // Merge bit vectors using "marked positions"
-    // TODO: parallelize
-    // omp_set_num_threads(threads);
-    // #pragma omp parallel for schedule(dynamic, 1)
+#pragma omp parallel for num_threads(1) // schedule(dynamic, 1)
     for (c = 1; c < 6; ++c)
         merge_ropes(rlc1->bits[c], rlc2->bits[c], marks);
+
+    fprintf(stderr, "[M::%s] Merged ropes in %.3f sec..\n", __func__, realtime() - t);
+
     free(marks);
     free(rlc2);
     kv_destroy(separators);

@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/resource.h>
-#include <sys/time.h>
 #include <zlib.h>
 
 #include "kseq.h"
@@ -40,12 +39,6 @@ double cputime() {
            1e-6 * (double) (r.ru_utime.tv_usec + r.ru_stime.tv_usec);
 }
 
-double realtime() {
-    struct timeval tp;
-    struct timezone tzp;
-    gettimeofday(&tp, &tzp);
-    return (double) tp.tv_sec + (double) tp.tv_usec * 1e-6;
-}
 
 int main(int argc, char *argv[]) {
     (void) argc; // suppress unused parameter warning
@@ -53,8 +46,8 @@ int main(int argc, char *argv[]) {
     t_start = realtime();
 
     char *fa_path = argv[1]; // reference
-    char *fq_path = argv[2]; // perfect reads
-    int64_t m = (int64_t) (.97 * 10 * 1024 * 1024 * 1024) + 1;
+    // char *fq_path = argv[2]; // perfect reads
+    int64_t m = (int64_t) (.97 * 10 * 1024 * 1024) + 1;
 
     rlcsa_t *rlc = rlc_init();
 
@@ -108,11 +101,12 @@ int main(int argc, char *argv[]) {
             realtime() - t_start, cputime());
 
     sa_t interval;
-    // for (int c = 0; c < 6; ++c) {
-    //     interval = rlc_init_interval(rlc, c);
-    //     fprintf(stderr, "%d: [%d, %d]\n", c, interval.a, interval.b);
-    // }
+     for (int c = 0; c < 6; ++c) {
+         interval = rlc_init_interval(rlc, c);
+         fprintf(stderr, "%d: [%ld, %ld]\n", c, interval.a, interval.b);
+     }
 
+    /**
     int errors = 0;
     fp = gzopen(fq_path, "rb");
     ks = kseq_init(fp);
@@ -134,7 +128,7 @@ int main(int argc, char *argv[]) {
         }
     }
     printf("Errors: %d\n", errors);
-
+    **/
     rlc_destroy(rlc);
 
     fprintf(stderr, "\n[M::%s] Real time: %.3f sec; CPU: %.3f sec\n", __func__,

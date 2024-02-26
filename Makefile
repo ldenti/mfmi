@@ -1,6 +1,6 @@
 CC=			gcc
-CFLAGS=		-Wall #-fno-inline-functions -fno-inline-functions-called-once
-LIBS=		-lz -lpthread
+CFLAGS=		-Wall -fopenmp #-fno-inline-functions -fno-inline-functions-called-once
+LIBS=		-lz # -lpthread
 
 .SUFFIXES:.c .o
 

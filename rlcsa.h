@@ -8,6 +8,7 @@
 #include "ksort.h"
 #include "rope.h"
 #include "rle.h"
+#include "utils.h"
 
 // void radix_sort(int64_t *array, int64_t offset, int64_t end, int shift);
 
