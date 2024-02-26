@@ -2,7 +2,8 @@
 
 ```
 make
-./mfmi example/4.fa.gz example/reads.fq.gz
+./mfmi index -r example/4.fa.gz > INDEX
+./mfmi search INDEX example/reads.fq.gz
 ```
 
 - [X] code refactoring
