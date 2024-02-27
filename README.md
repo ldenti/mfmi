@@ -23,5 +23,6 @@ We can keep the 4 bit vectors and:
 - [ ] implement "single-bit" rope and rle (7+1 for first block..)
 - [ ] improve array sorting
 - [ ] improve rope merging
+
 or we can try to check if we can use:
 - [ ] single 3bit rope (`$ACGTN``)+ update with marked positions
