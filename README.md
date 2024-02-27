@@ -3,7 +3,8 @@
 ```
 make
 ./mfmi index -r example/4.fa.gz > INDEX
-./mfmi search INDEX example/reads.fq.gz
+./mfmi search INDEX example/perfect_reads.fq.gz
+./mfmi pingpong INDEX example/reads.fq.gz > specific_strings.sfs
 ```
 
 - [X] code refactoring
