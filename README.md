@@ -18,4 +18,4 @@ make
 - [ ] parallelize index construction
 - [ ] improve array sorting
 - [ ] improve rope merging
-- [ ] fmd-index
+- [X] fmd-index

@@ -1,6 +1,7 @@
 #ifndef RLCSA_H_
 #define RLCSA_H_
 
+#include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -16,6 +17,12 @@ typedef struct {
   int64_t a;
   int64_t b;
 } pair_t;
+
+typedef struct {
+  int64_t x;
+  int64_t rx;
+  int64_t l;
+} bisa_t;
 
 #define pair_lt(x, y) ((x).b < (y).b)
 
@@ -86,6 +93,24 @@ sa_t rlc_init_interval(rlcsa_t *rlc, uint8_t c);
  * @param c         a character
  */
 sa_t rlc_lf(rlcsa_t *rlc, sa_t range, uint8_t c);
+
+/**
+ * Return bi-interval for a character (FMD)
+ *
+ * @param rlc       the index
+ * @param c         the character
+ */
+bisa_t rlc_init_biinterval(rlcsa_t *rlc, uint8_t c);
+
+/**
+ * LF-mapping (backward extension) for bi-intervals (FMD)
+ *
+ * @param rlc       the index
+ * @param range     a q-interval
+ * @param c         the character
+ * @param backward  backward/forward extension
+ */
+bisa_t rlc_bilf(rlcsa_t *rlc, bisa_t range, uint8_t c, uint8_t backward);
 
 /**
  * Merge rlc2 into rlc1. rlc2 is freed

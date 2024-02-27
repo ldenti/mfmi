@@ -293,7 +293,41 @@ sa_t rlc_lf(rlcsa_t *rlc, sa_t range, uint8_t c) {
 int64_t rlc_lf1(const rlcsa_t *rlc, int64_t x, uint8_t c) {
   int64_t cx[6] = {0, 0, 0, 0, 0, 0};
   rope_rank1a(rlc->bits[c], x + 1, cx);
-  return rlc->C[c] + cx[1] - 1; // FIXME: + rlc->cnts[0];
+  return rlc->C[c] + cx[1] - 1;
+}
+
+bisa_t flip(bisa_t range) { return (bisa_t){range.rx, range.x, range.l}; }
+
+bisa_t rlc_init_biinterval(rlcsa_t *rlc, uint8_t c) {
+  sa_t x = rlc_init_interval(rlc, c);
+  sa_t rx = rlc_init_interval(rlc, (c >= 1 && c <= 4) ? 5 - c : c);
+  assert(x.b - x.a == rx.b - rx.a);
+  return (bisa_t){x.a, rx.a, x.b - x.a + 1};
+}
+
+bisa_t rlc_bilf(rlcsa_t *rlc, bisa_t range, uint8_t c, uint8_t backward) {
+  // FIXME: improve this
+  if (backward) {
+    sa_t *ranges = (sa_t *)calloc(6, sizeof(sa_t));
+    int64_t cx[6] = {0, 0, 0, 0, 0, 0};
+    int64_t cy[6] = {0, 0, 0, 0, 0, 0};
+    for (int c_ = 1; c_ < 5; ++c_) {
+      rope_rank2a(rlc->bits[c_], range.x, range.x + range.l, cx, cy);
+      ranges[c_] = (sa_t){rlc->C[c_] + cx[1], cy[1] - cx[1]};
+      cx[0] = cx[1] = cy[0] = cy[1] = 0;
+    }
+    int64_t *ls = (int64_t *)calloc(6, sizeof(int64_t));
+    ls[0] = range.rx + 1;
+    ls[4] = ls[0] + ranges[0].b;
+    for (int c_ = 3; c_ > 0; --c_)
+      ls[c_] = ls[c_ + 1] + ranges[c_ + 1].b;
+    bisa_t r = (bisa_t){ranges[c].a, ls[c], ranges[c].b};
+    free(ranges);
+    free(ls);
+    return r;
+  } else {
+    return flip(rlc_bilf(rlc, flip(range), (c >= 1 && c <= 4) ? 5 - c : c, 1));
+  }
 }
 
 void report_positions(const rlcsa_t *rlc, const uint8_t *seq, int64_t n,
