@@ -13,7 +13,7 @@ make
 - [ ] bit rope and rle (7+1)
 - [X] rlcsa merging
 - [X] "iterative" rlcsa construction
-- [ ] more fastas
+- [X] more fastas
 - [X] dump/load rlcsa
 - [ ] parallelize index construction
 - [ ] improve array sorting
