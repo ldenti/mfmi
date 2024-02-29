@@ -59,11 +59,10 @@ setRanks(skew_pair *pairs, int64_t *keys,
 sa_t *prefixDoubling(sa_t *pairs, int64_t *keys, ss_ranges *unsorted,
                      uint64_t n, int64_t total, int h, int nt) {
   // Double prefix length until sorted
-  // TODO: parallelize
   int64_t i;
   while (total > 0) {
-    // uint chunk = std::max((size_t)1, unsorted.size() / (threads * threads));
-    // #pragma omp parallel for schedule(dynamic, chunk)
+  uint chunk = max(1, kv_size(*unsorted) / (nt * nt));
+#pragma omp parallel for num_threads(nt) schedule(dynamic, chunk)
     for (i = 0; i < kv_size(*unsorted); ++i) {
       // Set sort keys for the current range.
       for (sa_t *curr = pairs + kv_A(*unsorted, i).a;
@@ -78,7 +77,7 @@ sa_t *prefixDoubling(sa_t *pairs, int64_t *keys, ss_ranges *unsorted,
     // total, kv_size(*unsorted));
   }
 
-#pragma omp parallel for num_threads(nt) // schedule(static)
+#pragma omp parallel for num_threads(nt) schedule(static)
   for (i = 0; i < n; i++)
     pairs[i].b = keys[i];
   return pairs;
@@ -145,6 +144,7 @@ sa_t *simpleSuffixSort(const uint8_t *sequence, int64_t n, int64_t nsep,
   // t);
 
   // TODO: doubling vs tripling?
+
   t = realtime();
   sa_t *sa = prefixDoubling(pairs, keys, &unsorted, n, total, h, nt);
   fprintf(stderr, "[M::%s] Prefix doubling in %.3f sec..\n", __func__,
@@ -223,7 +223,7 @@ void rlc_build(rlcsa_t *rlc, const uint8_t *sequence, uint32_t n, int nt) {
   t = realtime();
 
   // Build Psi
-#pragma omp parallel for num_threads(nt) // schedule(static)
+#pragma omp parallel for num_threads(nt) schedule(static)
   for (i = 0; i < n; ++i)
     sa[i].a = sa[(sa[i].a + 1) % n].b;
   // fprintf(stderr, "[M::%s] Built PSI in %.3f sec..\n", __func__, realtime() -
@@ -231,7 +231,7 @@ void rlc_build(rlcsa_t *rlc, const uint8_t *sequence, uint32_t n, int nt) {
 
   // Build RLCSA
   t = realtime();
-#pragma omp parallel for num_threads(nt) // schedule(dynamic, 1)
+#pragma omp parallel for num_threads(nt) schedule(dynamic, 1)
   for (c = 1; c < 6; ++c) {              // TODO: start from 1 or 0?
     if (rlc->cnts[c] == 0)
       continue;
@@ -343,7 +343,7 @@ void report_positions(const rlcsa_t *rlc, const uint8_t *seq, int64_t n,
 }
 
 int64_t *get_marks(rlcsa_t *rlc, const uint8_t *seq, uint64_t n,
-                   int_kv separators) {
+                   int_kv separators, int nt) {
   uint32_t i, begin, sequences = 0;
   for (i = 0; i < n; ++i) {
     if (seq[i] == 0) {
@@ -354,17 +354,14 @@ int64_t *get_marks(rlcsa_t *rlc, const uint8_t *seq, uint64_t n,
 
   int64_t *marks = (int64_t *)calloc(
       n, sizeof(int64_t)); // FIXME: warning "exceeds maximum object size"
-
-  // TODO: parallelize
-  // usint chunk = std::max((usint)1, sequences / (8 * this->threads));
-  // #pragma omp parallel for schedule(dynamic, chunk)
+  uint chunk = max((uint)1, sequences / (8 * nt));
+#pragma omp parallel for schedule(dynamic, chunk)
   for (i = 0; i < sequences; i++) {
     // begin = kv_A(end_markers, i);
     begin = i > 0 ? kv_A(separators, i - 1) + 1 : 0;
     report_positions(rlc, seq + begin, kv_A(separators, i) - begin,
                      marks + begin);
   }
-
   return marks;
 }
 
@@ -413,7 +410,7 @@ void rlc_merge(rlcsa_t *rlc1, rlcsa_t *rlc2, const uint8_t *seq, int nt) {
   // Get $ positions (separators) and "marked positions" (marks)
   int_kv separators;
   kv_init(separators);
-  int64_t *marks = get_marks(rlc1, seq, rlc2->l, separators);
+  int64_t *marks = get_marks(rlc1, seq, rlc2->l, separators, nt);
   fprintf(stderr, "[M::%s] Computed marks in %.3f sec..\n", __func__,
           realtime() - t);
   t = realtime();
@@ -424,7 +421,7 @@ void rlc_merge(rlcsa_t *rlc1, rlcsa_t *rlc2, const uint8_t *seq, int nt) {
   fprintf(stderr, "[M::%s] Sorted marks in %.3f sec..\n", __func__,
           realtime() - t);
 
-#pragma omp parallel for num_threads(nt) // schedule(static)
+#pragma omp parallel for num_threads(nt) schedule(static)
   for (i = 0; i < rlc2->l; ++i)
     marks[i] += i + 1;
   // fprintf(stderr, "[M::%s] Updated marks in %.3f sec..\n", __func__,
@@ -441,7 +438,7 @@ void rlc_merge(rlcsa_t *rlc1, rlcsa_t *rlc2, const uint8_t *seq, int nt) {
   t = realtime();
 
   // Merge bit vectors using "marked positions"
-#pragma omp parallel for num_threads(nt) // schedule(dynamic, 1)
+#pragma omp parallel for num_threads(nt) schedule(dynamic)
   for (c = 1; c < 6; ++c)
     merge_ropes(rlc1->bits[c], rlc2->bits[c], marks);
 
