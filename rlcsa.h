@@ -74,8 +74,9 @@ rlcsa_t *rlc_restore(const char *fn);
  * @param rlc       the index
  * @param seq       the input string(s)
  * @param n         input string length (last 0 not included)
+ * @param nt        number of threads
  */
-void rlc_insert(rlcsa_t *rlc, const uint8_t *seq, int64_t n);
+void rlc_insert(rlcsa_t *rlc, const uint8_t *seq, int64_t n, int nt);
 
 /**
  * Return q-interval for a character
@@ -118,7 +119,8 @@ bisa_t rlc_bilf(rlcsa_t *rlc, bisa_t range, uint8_t c, uint8_t backward);
  * @param rlc1      first index
  * @param rlc2      second index
  * @param seq       the text of rlc2
+ * @param nt        number of threads
  */
-void rlc_merge(rlcsa_t *rlc, rlcsa_t *increment, const uint8_t *seq);
+void rlc_merge(rlcsa_t *rlc, rlcsa_t *increment, const uint8_t *seq, int nt);
 
 #endif

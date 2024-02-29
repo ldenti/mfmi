@@ -12,15 +12,15 @@ int main_index(int argc, char *argv[]) {
   (void)argc; // suppress unused parameter warning
   double t_start = realtime();
 
-  // int threads = 1;
+  int nt = 1;
   int reverse = 0;
   int64_t m = (int64_t)(.97 * 10 * 1024 * 1024) + 1;
   int c;
-  while ((c = getopt(argc, argv, "rh")) >= 0) {
+  while ((c = getopt(argc, argv, "@:rh")) >= 0) {
     switch (c) {
-    // case '@':
-    //   threads = atoi(optarg);
-    //   continue;
+    case '@':
+      nt = atoi(optarg);
+      continue;
     case 'r':
       reverse = 1;
       continue;
@@ -72,7 +72,7 @@ int main_index(int argc, char *argv[]) {
       }
       if (buf.l >= m) {
         double ct = cputime(), rt = realtime();
-        rlc_insert(rlc, (const uint8_t *)buf.s, (int64_t)buf.l);
+        rlc_insert(rlc, (const uint8_t *)buf.s, (int64_t)buf.l, nt);
         fprintf(stderr,
                 "[M::%s] inserted %ld symbols in %.3f sec; %.3f CPU sec\n",
                 __func__, (long)buf.l, realtime() - rt, cputime() - ct);
@@ -81,7 +81,7 @@ int main_index(int argc, char *argv[]) {
     }
     if (buf.l) {
       double ct = cputime(), rt = realtime();
-      rlc_insert(rlc, (const uint8_t *)buf.s, (int64_t)buf.l);
+      rlc_insert(rlc, (const uint8_t *)buf.s, (int64_t)buf.l, nt);
       fprintf(stderr,
               "[M::%s] inserted %ld symbols in %.3f sec; %.3f CPU sec\n",
               __func__, (long)buf.l, realtime() - rt, cputime() - ct);
