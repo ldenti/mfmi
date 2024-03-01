@@ -4,24 +4,17 @@ KSORT_INIT(pair, pair_t, pair_lt)
 
 KSORT_INIT_GENERIC(int64_t)
 
-int64_t
-setRanks(skew_pair *pairs, int64_t *keys,
-         ss_ranges *unsorted) { // int64_t n, uint8_t threads, uint32_t chunk) {
-  ss_ranges buffer;
-  kv_init(buffer);
-  uint32_t total = 0;
-  ss_range a;
+int64_t setRanks(skew_pair *pairs, int64_t *keys, ss_ranges *unsorted, int nt,
+                 int chunk) {
+  int64_t i, p;
+  ss_ranges *buffers = calloc(nt, sizeof(ss_ranges));
+  for (i = 0; i < nt; ++i)
+    kv_init(buffers[i]);
+  uint64_t *subtotals = calloc(nt, sizeof(uint64_t));
 
-  // TODO: parallelize
-  // std::vector<ss_range> buffers[threads];
-  // uint subtotals[threads];
-  // for (uint i = 0; i < threads; i++) {
-  //   subtotals[i] = 0;
-  // }
-
-  // #pragma omp parallel for schedule(dynamic, chunk)
-  for (int64_t i = 0; i < kv_size(*unsorted); ++i) {
-    // uint thread = omp_get_thread_num();
+#pragma omp parallel for num_threads(nt) schedule(dynamic, chunk)
+  for (i = 0; i < kv_size(*unsorted); ++i) {
+    int thread = omp_get_thread_num();
     skew_pair *prev = pairs + kv_A(*unsorted, i).a;
     keys[prev->a] = kv_A(*unsorted, i).a;
     skew_pair *limit = pairs + kv_A(*unsorted, i).b;
@@ -35,24 +28,24 @@ setRanks(skew_pair *pairs, int64_t *keys,
       keys[curr->a] = prev - pairs;
       for (++curr; curr <= limit && curr->b == prev->b; ++curr)
         keys[curr->a] = prev - pairs;
-      a = (ss_range){prev - pairs, (curr - 1) - pairs};
-      kv_push(ss_range, buffer, a);
-      total += curr - prev;
-      // buffers[thread].push_back(ss_range(prev - pairs, (curr - 1) - pairs));
-      // subtotals[thread] += curr - prev;
+      ss_range a = (ss_range){prev - pairs, (curr - 1) - pairs};
+      kv_push(ss_range, buffers[thread], a);
+      subtotals[thread] += curr - prev;
       prev = curr;
       if (prev <= limit)
         keys[prev->a] = prev - pairs;
     }
   }
   unsorted->n = 0;
-  for (uint i = 0; i < kv_size(buffer); ++i)
-    kv_push(ss_range, *unsorted, kv_A(buffer, i));
-  // for (uint i = 0; i < threads; i++) {
-  //   unsorted.insert(unsorted.end(), buffers[i].begin(), buffers[i].end());
-  //   total += subtotals[i];
-  // }
-  kv_destroy(buffer);
+  uint32_t total = 0;
+  for (i = 0; i < nt; ++i) {
+    for (p = 0; p < kv_size(buffers[i]); ++p)
+      kv_push(ss_range, *unsorted, kv_A(buffers[i], p));
+    kv_destroy(buffers[i]);
+    total += subtotals[i];
+  }
+  free(buffers);
+  free(subtotals);
   return total;
 }
 
@@ -61,7 +54,7 @@ sa_t *prefixDoubling(sa_t *pairs, int64_t *keys, ss_ranges *unsorted,
   // Double prefix length until sorted
   int64_t i;
   while (total > 0) {
-  uint chunk = max(1, kv_size(*unsorted) / (nt * nt));
+    uint chunk = max(1, kv_size(*unsorted) / (nt * nt));
 #pragma omp parallel for num_threads(nt) schedule(dynamic, chunk)
     for (i = 0; i < kv_size(*unsorted); ++i) {
       // Set sort keys for the current range.
@@ -71,7 +64,7 @@ sa_t *prefixDoubling(sa_t *pairs, int64_t *keys, ss_ranges *unsorted,
       ks_mergesort(pair, kv_A(*unsorted, i).b - kv_A(*unsorted, i).a + 1,
                    pairs + kv_A(*unsorted, i).a, 0);
     }
-    total = setRanks(pairs, keys, unsorted); //, threads, chunk);
+    total = setRanks(pairs, keys, unsorted, nt, chunk);
     h *= 2;
     // fprintf(stderr, "Sorted with %d, unsorted total = %ld (%ld ranges)\n", h,
     // total, kv_size(*unsorted));
@@ -139,7 +132,7 @@ sa_t *simpleSuffixSort(const uint8_t *sequence, int64_t n, int64_t nsep,
   // realtime() - t); t = realtime();
   ss_range a = (ss_range){0, n - 1};
   kv_push(ss_range, unsorted, a);
-  int64_t total = setRanks(pairs, keys, &unsorted); // threads, 1);
+  int64_t total = setRanks(pairs, keys, &unsorted, nt, 1);
   // fprintf(stderr, "[M::%s] Set ranks in %.3f sec..\n", __func__, realtime() -
   // t);
 
@@ -232,7 +225,7 @@ void rlc_build(rlcsa_t *rlc, const uint8_t *sequence, uint32_t n, int nt) {
   // Build RLCSA
   t = realtime();
 #pragma omp parallel for num_threads(nt) schedule(dynamic, 1)
-  for (c = 1; c < 6; ++c) {              // TODO: start from 1 or 0?
+  for (c = 1; c < 6; ++c) { // TODO: start from 1 or 0?
     if (rlc->cnts[c] == 0)
       continue;
     sa_t *curr = sa + rlc->C[c];
@@ -415,7 +408,6 @@ void rlc_merge(rlcsa_t *rlc1, rlcsa_t *rlc2, const uint8_t *seq, int nt) {
           realtime() - t);
   t = realtime();
 
-  // TODO: parallelize
   // radix_sort(marks, 0, rlc2->l, 24);
   ks_mergesort(int64_t, rlc2->l, marks, 0);
   fprintf(stderr, "[M::%s] Sorted marks in %.3f sec..\n", __func__,

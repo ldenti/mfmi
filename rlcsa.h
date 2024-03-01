@@ -2,6 +2,7 @@
 #define RLCSA_H_
 
 #include <assert.h>
+#include <omp.h>
 #include <stdint.h>
 #include <stdlib.h>
 
