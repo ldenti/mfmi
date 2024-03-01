@@ -1,0 +1,3 @@
+[submodule "exps/ext/pp-ropebwt2/ropebwt2"]
+	path = exps/ext/pp-ropebwt2/ropebwt2
+	url = https://github.com/lh3/ropebwt2.git
