@@ -1,5 +1,7 @@
 *.o
 mfmi
 *~
-example
-.idea/
+example/
+.nextflow/
+.nextflow.*
+work/
