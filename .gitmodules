@@ -1,3 +1,6 @@
 [submodule "exps/ext/pp-ropebwt2/ropebwt2"]
 	path = exps/ext/pp-ropebwt2/ropebwt2
 	url = https://github.com/lh3/ropebwt2.git
+[submodule "exps/ext/pp-rlcsa/rlcsa"]
+	path = exps/ext/pp-rlcsa/rlcsa
+	url = https://github.com/ldenti/rlcsa.git
