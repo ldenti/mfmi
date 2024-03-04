@@ -42,12 +42,12 @@ typedef struct uint_kv {
   kvec_t(int64_t);
 } int_kv;
 
-typedef struct {
-  int64_t l; // length of bitvectors in bits (same as length of indexed text)
-  int64_t *cnts;   // counts for each symbol
-  int64_t *C;      // C array
-  rope_t *bits[6]; // the bit vectors
-} rlcsa_t;         // the rlcsa index
+typedef struct { // the rlcsa index
+  int64_t l;     // length of indexed text
+  int64_t *cnts; // marginal counts for each symbol (same as rope->c)
+  int64_t *C;    // C array
+  rope_t *rope;  // the BWT
+} rlcsa_t;
 
 /**
  * Initialize a rlcsa

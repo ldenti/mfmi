@@ -91,16 +91,23 @@ int main_index(int argc, char *argv[]) {
     gzclose(fp);
 
     fprintf(stderr,
-            "\n[M::%s] indexed %s - Total time: %.3f sec; CPU: %.3f sec\n",
+            "[M::%s] indexed %s - Total time: %.3f sec; CPU: %.3f sec\n",
             __func__, fa_path, realtime() - t_start, cputime());
   }
   free(buf.s);
+
+  // Print BWT - debug
+  // rpitr_t *it = calloc(1, sizeof(rpitr_t));
+  // rope_itr_first(rlc->rope, it);
+  // uint8_t *b;
+  // while ((b = (uint8_t *)rope_itr_next_block(it)) != 0)
+  //   rle_print(b, 1);
 
   rlc_dump(rlc, "-"); // TODO: add path to CLI
   rlc_destroy(rlc);
 
   fprintf(stderr,
-          "\n[M::%s] dumped index - Total time: %.3f sec; CPU: %.3f sec\n",
+          "[M::%s] dumped index - Total time: %.3f sec; CPU: %.3f sec\n",
           __func__, realtime() - t_start, cputime());
 
   return 0;
