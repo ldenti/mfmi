@@ -56,8 +56,6 @@ void pp(rlcsa_t *rlc, const uint8_t *seq, const int64_t l, const char *qname) {
     // printf("\n");
     first = 0;
 
-    // TODO: improve this
-
     // prepare for next round
     if (begin == 0)
       break;
@@ -72,7 +70,7 @@ int main_pingpong(int argc, char *argv[]) {
   t_start = realtime();
 
   char *index_fn = argv[1]; // index
-  char *fq_fn = argv[2];    // **perfect** reads
+  char *fq_fn = argv[2];    // queries
 
   rlcsa_t *rlc = rlc_restore(index_fn);
 
@@ -85,7 +83,7 @@ int main_pingpong(int argc, char *argv[]) {
 
     // change encoding
     for (i = 0; i < l; ++i)
-      s[i] = s[i] < 128 ? seq_nt6_table[s[i]] : 5;
+      s[i] = fm6(s[i]);
 
     pp(rlc, s, l, ks->name.s);
   }

@@ -33,7 +33,7 @@ int main_search(int argc, char *argv[]) {
 
     // change encoding
     for (i = 0; i < l; ++i)
-      s[i] = s[i] < 128 ? seq_nt6_table[s[i]] : 5;
+      s[i] = fm6(s[i]);
     i = l - 1;
     rlc_init_qinterval(rlc, s[i], interval);
     --i;

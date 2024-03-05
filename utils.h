@@ -15,8 +15,6 @@
     _a > _b ? _a : _b;                                                         \
   })
 
-#define fm6_comp(a) ((a) >= 1 && (a) <= 4 ? 5 - (a) : (a))
-
 static const unsigned char seq_nt6_table[128] = {
     0, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
     5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
@@ -24,6 +22,10 @@ static const unsigned char seq_nt6_table[128] = {
     5, 2, 5, 5, 5, 3, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 5, 5, 5,
     5, 5, 5, 5, 5, 5, 5, 5, 5, 1, 5, 2, 5, 5, 5, 3, 5, 5, 5, 5, 5, 5,
     5, 5, 5, 5, 5, 5, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
+
+#define fm6(a) ((a) < 128 ? seq_nt6_table[(a)] : 5)
+
+#define fm6_comp(a) ((a) >= 1 && (a) <= 4 ? 5 - (a) : (a))
 
 static inline uint kputsn(const char *p, uint64_t l, kstring_t *s) {
   if (s->l + l + 1 >= s->m) {

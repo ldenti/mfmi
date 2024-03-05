@@ -14,7 +14,7 @@ int main_index(int argc, char *argv[]) {
 
   int nt = 1;
   int reverse = 0;
-  int64_t m = (int64_t)(.97 * 10 * 1024 * 1024 * 1024) + 1;
+  uint64_t m = (int64_t)(.97 * 10 * 1024 * 1024 * 1024) + 1;
   int c;
   while ((c = getopt(argc, argv, "@:rh")) >= 0) {
     switch (c) {
@@ -54,7 +54,7 @@ int main_index(int argc, char *argv[]) {
 
       // change encoding
       for (i = 0; i < l; ++i)
-        s[i] = s[i] < 128 ? seq_nt6_table[s[i]] : 5;
+        s[i] = fm6(s[i]);
 
       // Add forward to buffer
       kputsn((char *)ks->seq.s, ks->seq.l + 1, &buf);
@@ -62,12 +62,12 @@ int main_index(int argc, char *argv[]) {
         // Add reverse to buffer
         for (i = 0; i < (l >> 1); ++i) {
           int tmp = s[l - 1 - i];
-          tmp = (tmp >= 1 && tmp <= 4) ? 5 - tmp : tmp;
-          s[l - 1 - i] = (s[i] >= 1 && s[i] <= 4) ? 5 - s[i] : s[i];
+          tmp = fm6_comp(tmp);
+          s[l - 1 - i] = fm6_comp(s[i]);
           s[i] = tmp;
         }
         if (l & 1)
-          s[i] = (s[i] >= 1 && s[i] <= 4) ? 5 - s[i] : s[i];
+          s[i] = fm6_comp(s[i]);
         kputsn((char *)s, ks->seq.l + 1, &buf);
       }
       if (buf.l >= m) {
