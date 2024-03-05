@@ -152,16 +152,14 @@ rlcsa_t *rlc_init() {
   rlc = calloc(1, sizeof(rlcsa_t));
   rlc->cnts = calloc(6, sizeof(int64_t));
   rlc->C = calloc(6, sizeof(int64_t));
-  for (int c = 0; c < 6; ++c)
-    rlc->bits[c] = rope_init(ROPE_DEF_MAX_NODES, ROPE_DEF_BLOCK_LEN);
+  rlc->rope = rope_init(ROPE_DEF_MAX_NODES, ROPE_DEF_BLOCK_LEN);
   return rlc;
 }
 
 void rlc_destroy(rlcsa_t *rlc) {
   free(rlc->cnts);
   free(rlc->C);
-  for (int c = 0; c < 6; ++c)
-    rope_destroy(rlc->bits[c]);
+  rope_destroy(rlc->rope);
   free(rlc);
 }
 
@@ -173,8 +171,7 @@ int rlc_dump(rlcsa_t *rlc, const char *fn) {
   fwrite(&rlc->l, 8, 1, fp);
   fwrite(rlc->C, 8, 6, fp);
   fwrite(rlc->cnts, 8, 6, fp);
-  for (int c = 0; c < 6; ++c)
-    rope_dump(rlc->bits[c], fp);
+  rope_dump(rlc->rope, fp);
   fclose(fp);
   return 1;
 }
@@ -189,15 +186,15 @@ rlcsa_t *rlc_restore(const char *fn) {
   fread(&rlc->l, 8, 1, fp);
   fread(rlc->C, 8, 6, fp);
   fread(rlc->cnts, 8, 6, fp);
-  for (int c = 0; c < 6; ++c)
-    rlc->bits[c] = rope_restore(fp);
+  rlc->rope = rope_restore(fp);
   return rlc;
 }
 
 void rlc_build(rlcsa_t *rlc, const uint8_t *sequence, uint32_t n, int nt) {
   double t = realtime();
   uint32_t i;
-  uint8_t c;
+  int64_t rl, p;
+  uint8_t c, lc;
   rlc->l = (int64_t)n;
 
   // Build C
@@ -206,58 +203,30 @@ void rlc_build(rlcsa_t *rlc, const uint8_t *sequence, uint32_t n, int nt) {
   rlc->C[0] = 0;
   for (c = 1; c < 6; ++c) // FIXME: hardcoded
     rlc->C[c] = rlc->C[c - 1] + rlc->cnts[c - 1];
-  // fprintf(stderr, "[M::%s] Built C array in %.3f sec..\n", __func__,
-  // realtime() - t);
 
   // Build SA
   t = realtime();
-  sa_t *sa = simpleSuffixSort(sequence, n, rlc->cnts[0], nt); // threads
+  sa_t *sa = simpleSuffixSort(sequence, n, rlc->cnts[0], nt);
   fprintf(stderr, "[M::%s] Built SA in %.3f sec..\n", __func__, realtime() - t);
+
   t = realtime();
-
-  // Build Psi
-#pragma omp parallel for num_threads(nt) schedule(static)
-  for (i = 0; i < n; ++i)
-    sa[i].a = sa[(sa[i].a + 1) % n].b;
-  // fprintf(stderr, "[M::%s] Built PSI in %.3f sec..\n", __func__, realtime() -
-  // t);
-
-  // Build RLCSA
-  t = realtime();
-#pragma omp parallel for num_threads(nt) schedule(dynamic, 1)
-  for (c = 1; c < 6; ++c) { // TODO: start from 1 or 0?
-    if (rlc->cnts[c] == 0)
-      continue;
-    sa_t *curr = sa + rlc->C[c];
-    sa_t *limit = curr + rlc->cnts[c];
-    int64_t last_e = 0;
-    int64_t curr_s = curr->a;
-    int64_t curr_l = 1;
-    ++curr;
-
-    for (; curr < limit; ++curr) {
-      if (curr->a == curr_s + curr_l)
-        ++curr_l;
-      else {
-        if ((last_e == 0 && curr_s > 0) || last_e != 0)
-          rope_insert_run(rlc->bits[c], last_e, 0, curr_s - last_e, 0);
-        rope_insert_run(rlc->bits[c], curr_s, 1, curr_l, 0);
-        last_e = curr_s + curr_l;
-        curr_s = curr->a;
-        curr_l = 1;
-      }
+  lc = sequence[sa[0].a == n ? 0 : sa[0].a - 1];
+  rl = 1;
+  p = 0;
+  for (i = 1; i < n; ++i) {
+    c = sequence[sa[i].a == n ? 0 : sa[i].a - 1];
+    if (c == lc) {
+      ++rl;
+    } else {
+      rope_insert_run(rlc->rope, p, lc, rl, 0);
+      p += rl;
+      rl = 1;
     }
-    if ((last_e == 0 && curr_s > 0) || last_e != 0)
-      rope_insert_run(rlc->bits[c], last_e, 0, curr_s - last_e, 0);
-    rope_insert_run(rlc->bits[c], curr_s, 1, curr_l, 0);
-    curr_s += curr_l;
-    if (n - curr_s != 0)
-      rope_insert_run(rlc->bits[c], curr_s, 0, n - curr_s, 0);
-
-    // fprintf(stderr, "[M::%s] Built rope for c=%c in %.3f sec..\n", __func__,
-    // "$ACGTN"[c], realtime() - t);
-    t = realtime();
+    lc = c;
   }
+  rope_insert_run(rlc->rope, p, lc, rl, 0);
+  fprintf(stderr, "[M::%s] Built rope in %.3f sec..\n", __func__,
+          realtime() - t);
   free(sa);
 }
 
@@ -279,48 +248,31 @@ sa_t rlc_lf(rlcsa_t *rlc, sa_t range, uint8_t c) {
   // FIXME: move these into rlcsa_t?
   int64_t cx[6] = {0, 0, 0, 0, 0, 0};
   int64_t cy[6] = {0, 0, 0, 0, 0, 0};
-  rope_rank2a(rlc->bits[c], range.a, range.b + 1, cx, cy);
-  return (sa_t){rlc->C[c] + cx[1], rlc->C[c] + cy[1] - 1};
+  rope_rank2a(rlc->rope, range.a, range.b + 1, cx, cy);
+  return (sa_t){rlc->C[c] + cx[c], rlc->C[c] + cy[c] - 1};
 }
 
 int64_t rlc_lf1(const rlcsa_t *rlc, int64_t x, uint8_t c) {
   int64_t cx[6] = {0, 0, 0, 0, 0, 0};
-  rope_rank1a(rlc->bits[c], x + 1, cx);
-  return rlc->C[c] + cx[1] - 1;
+  rope_rank1a(rlc->rope, x + 1, cx);
+  return rlc->C[c] + cx[c] - 1;
 }
 
-bisa_t flip(bisa_t range) { return (bisa_t){range.rx, range.x, range.l}; }
-
-bisa_t rlc_init_biinterval(rlcsa_t *rlc, uint8_t c) {
-  sa_t x = rlc_init_interval(rlc, c);
-  sa_t rx = rlc_init_interval(rlc, (c >= 1 && c <= 4) ? 5 - c : c);
-  assert(x.b - x.a == rx.b - rx.a);
-  return (bisa_t){x.a, rx.a, x.b - x.a + 1};
-}
-
-bisa_t rlc_bilf(rlcsa_t *rlc, bisa_t range, uint8_t c, uint8_t backward) {
-  // FIXME: improve this
-  if (backward) {
-    sa_t *ranges = (sa_t *)calloc(6, sizeof(sa_t));
-    int64_t cx[6] = {0, 0, 0, 0, 0, 0};
-    int64_t cy[6] = {0, 0, 0, 0, 0, 0};
-    for (int c_ = 1; c_ < 5; ++c_) {
-      rope_rank2a(rlc->bits[c_], range.x, range.x + range.l, cx, cy);
-      ranges[c_] = (sa_t){rlc->C[c_] + cx[1], cy[1] - cx[1]};
-      cx[0] = cx[1] = cy[0] = cy[1] = 0;
-    }
-    int64_t *ls = (int64_t *)calloc(6, sizeof(int64_t));
-    ls[0] = range.rx + 1;
-    ls[4] = ls[0] + ranges[0].b;
-    for (int c_ = 3; c_ > 0; --c_)
-      ls[c_] = ls[c_ + 1] + ranges[c_ + 1].b;
-    bisa_t r = (bisa_t){ranges[c].a, ls[c], ranges[c].b};
-    free(ranges);
-    free(ls);
-    return r;
-  } else {
-    return flip(rlc_bilf(rlc, flip(range), (c >= 1 && c <= 4) ? 5 - c : c, 1));
+int rlc_bilf(const rlcsa_t *rlc, const bisa_t *ik, bisa_t ok[6], int is_back) {
+  uint64_t tk[6], tl[6];
+  int i;
+  rope_rank2a(rlc->rope, ik->x[!is_back], ik->x[!is_back] + ik->x[2], tk, tl);
+  for (i = 0; i < 6; ++i) {
+    ok[i].x[!is_back] = rlc->C[i] + tk[i];
+    ok[i].x[2] = (tl[i] -= tk[i]);
   }
+  ok[0].x[is_back] = ik->x[is_back];
+  ok[4].x[is_back] = ok[0].x[is_back] + tl[0];
+  ok[3].x[is_back] = ok[4].x[is_back] + tl[4];
+  ok[2].x[is_back] = ok[3].x[is_back] + tl[3];
+  ok[1].x[is_back] = ok[2].x[is_back] + tl[2];
+  ok[5].x[is_back] = ok[1].x[is_back] + tl[1];
+  return 0;
 }
 
 void report_positions(const rlcsa_t *rlc, const uint8_t *seq, int64_t n,
@@ -329,7 +281,6 @@ void report_positions(const rlcsa_t *rlc, const uint8_t *seq, int64_t n,
   positions[n] = current; // immediately after current
   for (int64_t i = n - 1; i >= 0; --i) {
     uint8_t c = seq[i];
-    // FIXME: assuming to have bitvector for character c
     current = rlc_lf1(rlc, current, c);
     positions[i] = current; // immediately after current
   }
@@ -373,13 +324,13 @@ void merge_ropes(rope_t *rope1, rope_t *rope2, int64_t *marks) {
   uint8_t c2;
   int64_t l2, m = 0;
   while ((b2 = (uint8_t *)rope_itr_next_block(it2)) != 0) {
-    // rle_print(b2, 1);
+    // rle_print(b2, 0);
     b2_i = b2 + 2;
     b2_end = b2 + 2 + *rle_nptr(b2);
     while (b2_i < b2_end) {
       rle_dec1(b2_i, c2, l2);
-      // printf("%d[%ld]\n", c2, l2);
       while (l2 > 0) {
+        // TODO: insert runs instead of single symbols
         rope_insert_run(rope1, marks[m], c2, 1, 0);
         ++m;
         --l2;
@@ -425,14 +376,11 @@ void rlc_merge(rlcsa_t *rlc1, rlcsa_t *rlc2, const uint8_t *seq, int nt) {
   rlc1->C[0] = 0;
   for (c = 1; c < 6; ++c)
     rlc1->C[c] = rlc1->C[c - 1] + rlc1->cnts[c - 1];
-  // fprintf(stderr, "[M::%s] Built C array in %.3f sec..\n", __func__,
-  // realtime() - t);
+
   t = realtime();
 
-  // Merge bit vectors using "marked positions"
-#pragma omp parallel for num_threads(nt) schedule(dynamic)
-  for (c = 1; c < 6; ++c)
-    merge_ropes(rlc1->bits[c], rlc2->bits[c], marks);
+  // Merge ropes using "marked positions"
+  merge_ropes(rlc1->rope, rlc2->rope, marks);
 
   fprintf(stderr, "[M::%s] Merged ropes in %.3f sec..\n", __func__,
           realtime() - t);

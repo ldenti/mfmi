@@ -20,9 +20,8 @@ typedef struct {
 } pair_t;
 
 typedef struct {
-  int64_t x;
-  int64_t rx;
-  int64_t l;
+  uint64_t x[3]; // 0: start of the interval, backward; 1: forward; 2: size of
+                 // the interval
 } bisa_t;
 
 #define pair_lt(x, y) ((x).b < (y).b)
@@ -42,12 +41,12 @@ typedef struct uint_kv {
   kvec_t(int64_t);
 } int_kv;
 
-typedef struct {
-  int64_t l; // length of bitvectors in bits (same as length of indexed text)
-  int64_t *cnts;   // counts for each symbol
-  int64_t *C;      // C array
-  rope_t *bits[6]; // the bit vectors
-} rlcsa_t;         // the rlcsa index
+typedef struct { // the rlcsa index
+  int64_t l;     // length of indexed text
+  int64_t *cnts; // marginal counts for each symbol (same as rope->c)
+  int64_t *C;    // C array
+  rope_t *rope;  // the BWT
+} rlcsa_t;
 
 /**
  * Initialize a rlcsa
@@ -97,12 +96,16 @@ sa_t rlc_init_interval(rlcsa_t *rlc, uint8_t c);
 sa_t rlc_lf(rlcsa_t *rlc, sa_t range, uint8_t c);
 
 /**
- * Return bi-interval for a character (FMD)
+ * Compute bi-interval for a character (FMD)
  *
- * @param rlc       the index
+ * @param e         the index
  * @param c         the character
- */
-bisa_t rlc_init_biinterval(rlcsa_t *rlc, uint8_t c);
+ * @param ik        the interval
+ */ // FIXME
+#define rlc_init_biinterval(e, c, ik)                                          \
+  ((ik).x[0] = (e)->C[(int)(c)],                                               \
+   (ik).x[2] = (e)->C[(int)(c) + 1] - (e)->C[(int)(c)],                        \
+   (ik).x[1] = (e)->C[fm6_comp(c)])
 
 /**
  * LF-mapping (backward extension) for bi-intervals (FMD)
@@ -111,8 +114,8 @@ bisa_t rlc_init_biinterval(rlcsa_t *rlc, uint8_t c);
  * @param range     a q-interval
  * @param c         the character
  * @param backward  backward/forward extension
- */
-bisa_t rlc_bilf(rlcsa_t *rlc, bisa_t range, uint8_t c, uint8_t backward);
+ */ // FIXME
+int rlc_bilf(const rlcsa_t *rlc, const bisa_t *ik, bisa_t ok[6], int is_back);
 
 /**
  * Merge rlc2 into rlc1. rlc2 is freed
