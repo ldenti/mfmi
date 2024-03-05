@@ -78,6 +78,17 @@ rlcsa_t *rlc_restore(const char *fn);
 void rlc_insert(rlcsa_t *rlc, const uint8_t *seq, int64_t n, int nt);
 
 /**
+ * Build index by inserting a 0-separated sequence. If index is not empty,
+ * merge.
+ *
+ * @params rlc       the index
+ * @params sequence  the sequence
+ * @params n         sequence length
+ * @params nt        number of threads
+ */
+void rlc_build(rlcsa_t *rlc, const uint8_t *sequence, uint32_t n, int nt);
+
+/**
  * Init (bi)interval given a character
  *
  * @param e         the index

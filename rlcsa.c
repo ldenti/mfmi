@@ -4,13 +4,69 @@ KSORT_INIT(pair, pair_t, pair_lt)
 
 KSORT_INIT_GENERIC(int64_t)
 
-int64_t setRanks(skew_pair *pairs, int64_t *keys, ss_ranges *unsorted, int nt,
-                 int chunk) {
-  int64_t i, p;
+rlcsa_t *rlc_init() {
+  rlcsa_t *rlc;
+  rlc = calloc(1, sizeof(rlcsa_t));
+  rlc->cnts = calloc(6, sizeof(int64_t));
+  rlc->C = calloc(6, sizeof(int64_t));
+  rlc->rope = rope_init(ROPE_DEF_MAX_NODES, ROPE_DEF_BLOCK_LEN);
+  return rlc;
+}
+
+void rlc_destroy(rlcsa_t *rlc) {
+  free(rlc->cnts);
+  free(rlc->C);
+  rope_destroy(rlc->rope);
+  free(rlc);
+}
+
+void rlc_insert(rlcsa_t *rlc, const uint8_t *sequence, int64_t n, int nt) {
+  if (rlc->l == 0) {
+    rlc_build(rlc, sequence, n, nt);
+    return;
+  }
+  rlcsa_t *rlc2 = rlc_init();
+  rlc_build(rlc2, sequence, n, nt);
+  rlc_merge(rlc, rlc2, sequence, nt);
+}
+
+int rlc_dump(const rlcsa_t *rlc, const char *fn) {
+  FILE *fp = strcmp(fn, "-") ? fopen(fn, "wb") : fdopen(fileno(stdout), "wb");
+  if (fp == 0)
+    return -1;
+  fwrite("RLC\3", 1, 4, fp); // write magic
+  fwrite(&rlc->l, 8, 1, fp);
+  fwrite(rlc->C, 8, 6, fp);
+  fwrite(rlc->cnts, 8, 6, fp);
+  rope_dump(rlc->rope, fp);
+  fclose(fp);
+  return 1;
+}
+
+rlcsa_t *rlc_restore(const char *fn) {
+  rlcsa_t *rlc = rlc_init();
+  FILE *fp;
+  if ((fp = fopen(fn, "rb")) == 0)
+    return rlc; // TODO: fail
+  char magic[4];
+  fread(magic, 1, 4, fp);
+  fread(&rlc->l, 8, 1, fp);
+  fread(rlc->C, 8, 6, fp);
+  fread(rlc->cnts, 8, 6, fp);
+  rlc->rope = rope_restore(fp);
+  return rlc;
+}
+
+/**************************/
+/** *** CONSTRUCTION *** **/
+/**************************/
+uint32_t setRanks(skew_pair *pairs, uint32_t *keys, ss_ranges *unsorted,
+                  uint nt, uint chunk) {
+  uint32_t i, p;
   ss_ranges *buffers = calloc(nt, sizeof(ss_ranges));
   for (i = 0; i < nt; ++i)
     kv_init(buffers[i]);
-  uint64_t *subtotals = calloc(nt, sizeof(uint64_t));
+  uint32_t *subtotals = calloc(nt, sizeof(uint64_t));
 
 #pragma omp parallel for num_threads(nt) schedule(dynamic, chunk)
   for (i = 0; i < kv_size(*unsorted); ++i) {
@@ -49,10 +105,10 @@ int64_t setRanks(skew_pair *pairs, int64_t *keys, ss_ranges *unsorted, int nt,
   return total;
 }
 
-sa_t *prefixDoubling(sa_t *pairs, int64_t *keys, ss_ranges *unsorted,
-                     uint64_t n, int64_t total, int h, int nt) {
+sa_t *prefixDoubling(sa_t *pairs, uint32_t *keys, ss_ranges *unsorted,
+                     uint32_t n, int total, int h, int nt) {
   // Double prefix length until sorted
-  int64_t i;
+  uint32_t i;
   while (total > 0) {
     uint chunk = max(1, kv_size(*unsorted) / (nt * nt));
 #pragma omp parallel for num_threads(nt) schedule(dynamic, chunk)
@@ -85,20 +141,20 @@ sa_t *simpleSuffixSort(const uint8_t *sequence, int64_t n, int64_t nsep,
   ss_ranges unsorted;
   kv_init(unsorted);
   skew_pair *pairs = (skew_pair *)calloc(n + 1, sizeof(skew_pair));
-  int64_t *keys = (int64_t *)calloc(n + 1, sizeof(int64_t)); // In text order.
+  uint32_t *keys = (uint32_t *)calloc(n + 1, sizeof(int64_t)); // In text order.
 
   // Determine pack factor
-  int64_t alphabet_size = nsep + 5;          // FIXME: hardcoded
-  int64_t limit = INT32_MAX / alphabet_size; // FIXME
-  uint h = 1, pack_multiplier = 1;
+  uint32_t alphabet_size = nsep + 5;           // FIXME: hardcoded
+  uint32_t limit = UINT32_MAX / alphabet_size; // FIXME
+  uint32_t h = 1, pack_multiplier = 1;
   while (pack_multiplier * alphabet_size <= limit) {
     ++h;
     pack_multiplier *= alphabet_size;
   }
 
   // Initialize pairs
-  uint zeros = 0, value = 0;
-  for (uint i = 0; i < h; ++i) {
+  uint zeros = 0, value = 0, i;
+  for (i = 0; i < h; ++i) {
     value *= alphabet_size;
     if (sequence[i] == 0) {
       value += zeros;
@@ -107,7 +163,7 @@ sa_t *simpleSuffixSort(const uint8_t *sequence, int64_t n, int64_t nsep,
       value += nsep + sequence[i] - 1;
     }
   }
-  for (uint i = 0; i < n - h; i++) {
+  for (i = 0; i < n - h; i++) {
     pairs[i].a = i;
     pairs[i].b = value;
     value = (value % pack_multiplier) * alphabet_size;
@@ -118,82 +174,38 @@ sa_t *simpleSuffixSort(const uint8_t *sequence, int64_t n, int64_t nsep,
       value += nsep + sequence[i + h] - 1;
     }
   }
-  for (uint i = n - h; i < n; i++) {
+  for (i = n - h; i < n; i++) {
     pairs[i].a = i;
     pairs[i].b = value;
     value = (value % pack_multiplier) * alphabet_size;
   }
-  // fprintf(stderr, "[M::%s] Built %ld pairs in %.3f sec..\n", __func__, n,
-  // realtime() - t); t = realtime();
 
   // Sort according to first character
+  t = realtime();
   ks_mergesort(pair, n, pairs, 0);
-  // fprintf(stderr, "[M::%s] Sorted pairs in %.3f sec..\n", __func__,
-  // realtime() - t); t = realtime();
+  fprintf(stderr, "[M::%s] Sorted pairs in %.3f sec\n", __func__,
+          realtime() - t);
+  t = realtime();
   ss_range a = (ss_range){0, n - 1};
   kv_push(ss_range, unsorted, a);
   int64_t total = setRanks(pairs, keys, &unsorted, nt, 1);
-  // fprintf(stderr, "[M::%s] Set ranks in %.3f sec..\n", __func__, realtime() -
-  // t);
+  fprintf(stderr, "[M::%s] Set ranks in %.3f sec\n", __func__, realtime() - t);
 
   // TODO: doubling vs tripling?
 
   t = realtime();
   sa_t *sa = prefixDoubling(pairs, keys, &unsorted, n, total, h, nt);
-  fprintf(stderr, "[M::%s] Prefix doubling in %.3f sec..\n", __func__,
+  fprintf(stderr, "[M::%s] Prefix doubling in %.3f sec\n", __func__,
           realtime() - t);
   free(keys);
   kv_destroy(unsorted);
   return sa;
 }
 
-rlcsa_t *rlc_init() {
-  rlcsa_t *rlc;
-  rlc = calloc(1, sizeof(rlcsa_t));
-  rlc->cnts = calloc(6, sizeof(int64_t));
-  rlc->C = calloc(6, sizeof(int64_t));
-  rlc->rope = rope_init(ROPE_DEF_MAX_NODES, ROPE_DEF_BLOCK_LEN);
-  return rlc;
-}
-
-void rlc_destroy(rlcsa_t *rlc) {
-  free(rlc->cnts);
-  free(rlc->C);
-  rope_destroy(rlc->rope);
-  free(rlc);
-}
-
-int rlc_dump(const rlcsa_t *rlc, const char *fn) {
-  FILE *fp = strcmp(fn, "-") ? fopen(fn, "wb") : fdopen(fileno(stdout), "wb");
-  if (fp == 0)
-    return -1;
-  fwrite("RLC\3", 1, 4, fp); // write magic
-  fwrite(&rlc->l, 8, 1, fp);
-  fwrite(rlc->C, 8, 6, fp);
-  fwrite(rlc->cnts, 8, 6, fp);
-  rope_dump(rlc->rope, fp);
-  fclose(fp);
-  return 1;
-}
-
-rlcsa_t *rlc_restore(const char *fn) {
-  rlcsa_t *rlc = rlc_init();
-  FILE *fp;
-  if ((fp = fopen(fn, "rb")) == 0)
-    return rlc; // TODO: fail
-  char magic[4];
-  fread(magic, 1, 4, fp);
-  fread(&rlc->l, 8, 1, fp);
-  fread(rlc->C, 8, 6, fp);
-  fread(rlc->cnts, 8, 6, fp);
-  rlc->rope = rope_restore(fp);
-  return rlc;
-}
-
 void rlc_build(rlcsa_t *rlc, const uint8_t *sequence, uint32_t n, int nt) {
-  double t = realtime();
+  double t;
   uint32_t i;
-  int64_t rl, p;
+  uint32_t rl, p;
   uint8_t c, lc;
   rlc->l = (int64_t)n;
 
@@ -210,6 +222,7 @@ void rlc_build(rlcsa_t *rlc, const uint8_t *sequence, uint32_t n, int nt) {
   fprintf(stderr, "[M::%s] Built SA in %.3f sec..\n", __func__, realtime() - t);
 
   t = realtime();
+  // Build rope by inserting runs
   lc = sequence[sa[0].a == n ? 0 : sa[0].a - 1];
   rl = 1;
   p = 0;
@@ -230,16 +243,9 @@ void rlc_build(rlcsa_t *rlc, const uint8_t *sequence, uint32_t n, int nt) {
   free(sa);
 }
 
-void rlc_insert(rlcsa_t *rlc, const uint8_t *sequence, int64_t n, int nt) {
-  if (rlc->l == 0) {
-    rlc_build(rlc, sequence, n, nt);
-    return;
-  }
-  rlcsa_t *rlc2 = rlc_init();
-  rlc_build(rlc2, sequence, n, nt);
-  rlc_merge(rlc, rlc2, sequence, nt);
-}
-
+/**********************/
+/** *** QUERYING *** **/
+/**********************/
 int64_t rlc_lf1(const rlcsa_t *rlc, int64_t x, uint8_t c) {
   int64_t cx[6] = {0, 0, 0, 0, 0, 0};
   rope_rank1a(rlc->rope, x + 1, cx);
@@ -264,6 +270,9 @@ int rlc_extend(const rlcsa_t *rlc, const qint_t *ik, qint_t ok[6],
   return 0;
 }
 
+/*********************/
+/** *** MERGING *** **/
+/*********************/
 void report_positions(const rlcsa_t *rlc, const uint8_t *seq, int64_t n,
                       int64_t *positions) {
   uint32_t current = rlc->cnts[0] - 1;
