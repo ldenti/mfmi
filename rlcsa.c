@@ -203,8 +203,6 @@ void rlc_build(rlcsa_t *rlc, const uint8_t *sequence, uint32_t n, int nt) {
   rlc->C[0] = 0;
   for (c = 1; c < 6; ++c) // FIXME: hardcoded
     rlc->C[c] = rlc->C[c - 1] + rlc->cnts[c - 1];
-  fprintf(stderr, "[M::%s] Built C array in %.3f sec..\n", __func__,
-          realtime() - t);
 
   // Build SA
   t = realtime();
@@ -260,39 +258,21 @@ int64_t rlc_lf1(const rlcsa_t *rlc, int64_t x, uint8_t c) {
   return rlc->C[c] + cx[c] - 1;
 }
 
-bisa_t flip(bisa_t range) { return (bisa_t){range.rx, range.x, range.l}; }
-
-bisa_t rlc_init_biinterval(rlcsa_t *rlc, uint8_t c) {
-  sa_t x = rlc_init_interval(rlc, c);
-  sa_t rx = rlc_init_interval(rlc, (c >= 1 && c <= 4) ? 5 - c : c);
-  assert(x.b - x.a == rx.b - rx.a);
-  return (bisa_t){x.a, rx.a, x.b - x.a + 1};
-}
-
-bisa_t rlc_bilf(rlcsa_t *rlc, bisa_t range, uint8_t c, uint8_t backward) {
-  // FIXME: improve this
-  if (backward) {
-    sa_t *ranges = (sa_t *)calloc(6, sizeof(sa_t));
-    int64_t cx[6] = {0, 0, 0, 0, 0, 0};
-    int64_t cy[6] = {0, 0, 0, 0, 0, 0};
-    for (int c_ = 1; c_ < 5; ++c_) {
-      rope_rank2a(rlc->rope, range.x, range.x + range.l, cx, cy);
-      ranges[c_] = (sa_t){rlc->C[c_] + cx[c_], cy[c_] - cx[c_]};
-      cx[0] = cx[1] = cx[2] = cx[3] = cx[4] = cx[5] = 0;
-      cy[0] = cy[1] = cy[2] = cy[3] = cy[4] = cy[5] = 0;
-    }
-    int64_t *ls = (int64_t *)calloc(6, sizeof(int64_t));
-    ls[0] = range.rx + 1;
-    ls[4] = ls[0] + ranges[0].b;
-    for (int c_ = 3; c_ > 0; --c_)
-      ls[c_] = ls[c_ + 1] + ranges[c_ + 1].b;
-    bisa_t r = (bisa_t){ranges[c].a, ls[c], ranges[c].b};
-    free(ranges);
-    free(ls);
-    return r;
-  } else {
-    return flip(rlc_bilf(rlc, flip(range), (c >= 1 && c <= 4) ? 5 - c : c, 1));
+int rlc_bilf(const rlcsa_t *rlc, const bisa_t *ik, bisa_t ok[6], int is_back) {
+  uint64_t tk[6], tl[6];
+  int i;
+  rope_rank2a(rlc->rope, ik->x[!is_back], ik->x[!is_back] + ik->x[2], tk, tl);
+  for (i = 0; i < 6; ++i) {
+    ok[i].x[!is_back] = rlc->C[i] + tk[i];
+    ok[i].x[2] = (tl[i] -= tk[i]);
   }
+  ok[0].x[is_back] = ik->x[is_back];
+  ok[4].x[is_back] = ok[0].x[is_back] + tl[0];
+  ok[3].x[is_back] = ok[4].x[is_back] + tl[4];
+  ok[2].x[is_back] = ok[3].x[is_back] + tl[3];
+  ok[1].x[is_back] = ok[2].x[is_back] + tl[2];
+  ok[5].x[is_back] = ok[1].x[is_back] + tl[1];
+  return 0;
 }
 
 void report_positions(const rlcsa_t *rlc, const uint8_t *seq, int64_t n,

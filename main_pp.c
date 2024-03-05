@@ -14,46 +14,53 @@ void pp(rlcsa_t *rlc, const uint8_t *seq, const int64_t l, const char *qname) {
   bisa_t sai;
   while (begin >= 0) {
     c = seq[begin];
-    sai = rlc_init_biinterval(rlc, c);
-    // fprintf(stderr, "Starting from %d/%ld\n", begin, l);
-
-    // fprintf(stderr, "Starting from %c (%d): %d,%d,%d\n", "$ACGTN"[c], begin,
-    //         sai.x, sai.rx, sai.l);
+    rlc_init_biinterval(rlc, c, sai);
+    fprintf(stderr, "Starting from %c (%d): %d,%d,%d\n", "$ACGTN"[c], begin,
+            sai.x[0], sai.x[1], sai.x[2]);
 
     // Backward search. Stop at first mismatch.
     int bmatches = 0;
-    while (sai.l > 0 && begin > 0) {
+    while (sai.x[2] > 0 && begin > 0) {
       --begin;
       c = seq[begin];
       ++bmatches;
-      // fprintf(stderr, "Backward extending with %c (%d)\n", "$ACGTN"[c],
-      // begin);
-      sai = rlc_bilf(rlc, sai, c, 1);
+      bisa_t osai[6];
+      rlc_bilf(rlc, &sai, osai, 1);
+      sai = osai[seq[begin]];
+      fprintf(stderr, "Backward extending with %c (%d): %d,%d,%d\n",
+              "$ACGTN"[c], begin, sai.x[0], sai.x[1], sai.x[2]);
       // fprintf(stderr, "%d,%d,%d\n", sai.x, sai.rx, sai.l);
     }
     // prefix is a match
-    if (begin == 0 && sai.l > 0)
+    if (begin == 0 && sai.x[2] > 0)
       break;
 
     // Forward search
     int end = begin;
     int fmatches = 0;
     c = seq[end];
-    sai = rlc_init_biinterval(rlc, c);
-    // fprintf(stderr, "Starting from %c (%d): d%d,%d,%d\n", "$ACGTN"[c], end,
-    //         sai.x, sai.rx, sai.l);
-    while (sai.l > 0) {
+    rlc_init_biinterval(rlc, c, sai);
+    fprintf(stderr, "Starting from %c (%d): %d,%d,%d\n", "$ACGTN"[c], end,
+            sai.x[0], sai.x[1], sai.x[2]);
+    while (sai.x[2] > 0) {
       ++end;
       c = seq[end];
       ++fmatches;
-      sai = rlc_bilf(rlc, sai, c, 0);
-      // fprintf(stderr, "Forward extending with %c (%d): %d,%d,%d\n",
-      // "$ACGTN"[c],
-      //         begin, sai.x, sai.rx, sai.l);
+      bisa_t osai[6];
+      rlc_bilf(rlc, &sai, osai, 0);
+      sai = osai[fm6_comp(seq[end])];
+      fprintf(stderr, "Forward extending with %c (%d): %d,%d,%d\n", "$ACGTN"[c],
+              end, sai.x[0], sai.x[1], sai.x[2]);
     }
-    // fprintf(stderr, "Forward matches: %d\n", fmatches);
+
+    fprintf(stderr, "%d -> %d\n", begin, end);
+    fprintf(stderr, "Matches: <%d | >%d\n", bmatches, fmatches);
+
     // add solution
     printf("%s\t%d\t%d\n", first ? qname : "*", begin, end - begin + 1);
+    /* for (int i = begin; i < end; ++i) */
+    /*   printf("%c", "$ACGTN"[seq[i]]); */
+    /* printf("\n"); */
     first = 0;
 
     // TODO: improve this
