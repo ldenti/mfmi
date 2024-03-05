@@ -16,13 +16,5 @@ make
 - [X] more fastas
 - [X] dump/load rlcsa
 - [X] fmd-index
-
-### Index construction - ideas
-We can keep the 4 bit vectors and:
-- [ ] parallelize index construction
-- [ ] implement "single-bit" rope and rle (7+1 for first block..)
-- [ ] improve array sorting
-- [ ] improve rope merging
-
-or we can try to check if we can use:
-- [ ] single 3bit rope (`$ACGTN``)+ update with marked positions
+- [ ] merge queries function (interval and biinterval)
+- [ ] improve multithreading
