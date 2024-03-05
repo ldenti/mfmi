@@ -163,7 +163,7 @@ void rlc_destroy(rlcsa_t *rlc) {
   free(rlc);
 }
 
-int rlc_dump(rlcsa_t *rlc, const char *fn) {
+int rlc_dump(const rlcsa_t *rlc, const char *fn) {
   FILE *fp = strcmp(fn, "-") ? fopen(fn, "wb") : fdopen(fileno(stdout), "wb");
   if (fp == 0)
     return -1;
@@ -240,26 +240,15 @@ void rlc_insert(rlcsa_t *rlc, const uint8_t *sequence, int64_t n, int nt) {
   rlc_merge(rlc, rlc2, sequence, nt);
 }
 
-sa_t rlc_init_interval(rlcsa_t *rlc, uint8_t c) {
-  return (sa_t){rlc->C[c], rlc->C[c] + rlc->cnts[c] - 1};
-}
-
-sa_t rlc_lf(rlcsa_t *rlc, sa_t range, uint8_t c) {
-  // FIXME: move these into rlcsa_t?
-  int64_t cx[6] = {0, 0, 0, 0, 0, 0};
-  int64_t cy[6] = {0, 0, 0, 0, 0, 0};
-  rope_rank2a(rlc->rope, range.a, range.b + 1, cx, cy);
-  return (sa_t){rlc->C[c] + cx[c], rlc->C[c] + cy[c] - 1};
-}
-
 int64_t rlc_lf1(const rlcsa_t *rlc, int64_t x, uint8_t c) {
   int64_t cx[6] = {0, 0, 0, 0, 0, 0};
   rope_rank1a(rlc->rope, x + 1, cx);
   return rlc->C[c] + cx[c] - 1;
 }
 
-int rlc_bilf(const rlcsa_t *rlc, const bisa_t *ik, bisa_t ok[6], int is_back) {
-  uint64_t tk[6], tl[6];
+int rlc_extend(const rlcsa_t *rlc, const qint_t *ik, qint_t ok[6],
+               int is_back) {
+  int64_t tk[6], tl[6];
   int i;
   rope_rank2a(rlc->rope, ik->x[!is_back], ik->x[!is_back] + ik->x[2], tk, tl);
   for (i = 0; i < 6; ++i) {

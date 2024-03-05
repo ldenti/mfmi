@@ -17,10 +17,10 @@ int main_search(int argc, char *argv[]) {
 
   rlcsa_t *rlc = rlc_restore(index_fn);
 
-  sa_t interval;
+  qint_t interval;
   for (int c = 0; c < 6; ++c) {
-    interval = rlc_init_interval(rlc, c);
-    printf("%d: [%ld, %ld]\n", c, interval.a, interval.b);
+    rlc_init_qinterval(rlc, c, interval);
+    printf("%d: [%ld, %ld]\n", c, interval.x[0], interval.x[0] + interval.x[2]);
   }
 
   int errors = 0;
@@ -35,11 +35,13 @@ int main_search(int argc, char *argv[]) {
     for (i = 0; i < l; ++i)
       s[i] = s[i] < 128 ? seq_nt6_table[s[i]] : 5;
     i = l - 1;
-    interval = rlc_init_interval(rlc, s[i]);
+    rlc_init_qinterval(rlc, s[i], interval);
     --i;
     for (; i >= 0; --i) {
-      interval = rlc_lf(rlc, interval, s[i]);
-      if (interval.b < interval.a) {
+      qint_t osai[6];
+      rlc_extend(rlc, &interval, osai, 1);
+      interval = osai[s[i]];
+      if (interval.x[2] <= 0) {
         errors += 1;
         break;
       }

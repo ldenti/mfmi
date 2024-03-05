@@ -11,25 +11,22 @@ void pp(rlcsa_t *rlc, const uint8_t *seq, const int64_t l, const char *qname) {
   int begin = l - 1;
   uint8_t first = 1;
   uint8_t c;
-  bisa_t sai;
+  qint_t sai;
   while (begin >= 0) {
     c = seq[begin];
-    rlc_init_biinterval(rlc, c, sai);
-    fprintf(stderr, "Starting from %c (%d): %d,%d,%d\n", "$ACGTN"[c], begin,
-            sai.x[0], sai.x[1], sai.x[2]);
+    rlc_init_qinterval(rlc, c, sai);
+    // fprintf(stderr, "Starting from %c (%d): %ld,%ld,%ld\n", "$ACGTN"[c],
+    // begin, sai.x[0], sai.x[1], sai.x[2]);
 
     // Backward search. Stop at first mismatch.
-    int bmatches = 0;
     while (sai.x[2] > 0 && begin > 0) {
       --begin;
       c = seq[begin];
-      ++bmatches;
-      bisa_t osai[6];
-      rlc_bilf(rlc, &sai, osai, 1);
+      qint_t osai[6];
+      rlc_extend(rlc, &sai, osai, 1);
       sai = osai[seq[begin]];
-      fprintf(stderr, "Backward extending with %c (%d): %d,%d,%d\n",
-              "$ACGTN"[c], begin, sai.x[0], sai.x[1], sai.x[2]);
-      // fprintf(stderr, "%d,%d,%d\n", sai.x, sai.rx, sai.l);
+      // fprintf(stderr, "Backward extending with %c (%d): %ld,%ld,%ld\n",
+      //         "$ACGTN"[c], begin, sai.x[0], sai.x[1], sai.x[2]);
     }
     // prefix is a match
     if (begin == 0 && sai.x[2] > 0)
@@ -37,30 +34,26 @@ void pp(rlcsa_t *rlc, const uint8_t *seq, const int64_t l, const char *qname) {
 
     // Forward search
     int end = begin;
-    int fmatches = 0;
     c = seq[end];
-    rlc_init_biinterval(rlc, c, sai);
-    fprintf(stderr, "Starting from %c (%d): %d,%d,%d\n", "$ACGTN"[c], end,
-            sai.x[0], sai.x[1], sai.x[2]);
+    rlc_init_qinterval(rlc, c, sai);
+    // fprintf(stderr, "Starting from %c (%d): %ld,%ld,%ld\n", "$ACGTN"[c],
+    // end,
+    //         sai.x[0], sai.x[1], sai.x[2]);
     while (sai.x[2] > 0) {
       ++end;
       c = seq[end];
-      ++fmatches;
-      bisa_t osai[6];
-      rlc_bilf(rlc, &sai, osai, 0);
+      qint_t osai[6];
+      rlc_extend(rlc, &sai, osai, 0);
       sai = osai[fm6_comp(seq[end])];
-      fprintf(stderr, "Forward extending with %c (%d): %d,%d,%d\n", "$ACGTN"[c],
-              end, sai.x[0], sai.x[1], sai.x[2]);
+      // fprintf(stderr, "Forward extending with %c (%d): %ld,%ld,%ld\n",
+      //         "$ACGTN"[c], end, sai.x[0], sai.x[1], sai.x[2]);
     }
-
-    fprintf(stderr, "%d -> %d\n", begin, end);
-    fprintf(stderr, "Matches: <%d | >%d\n", bmatches, fmatches);
 
     // add solution
     printf("%s\t%d\t%d\n", first ? qname : "*", begin, end - begin + 1);
-    /* for (int i = begin; i < end; ++i) */
-    /*   printf("%c", "$ACGTN"[seq[i]]); */
-    /* printf("\n"); */
+    // for (int i = begin; i < end; ++i)
+    //   printf("%c", "$ACGTN"[seq[i]]);
+    // printf("\n");
     first = 0;
 
     // TODO: improve this

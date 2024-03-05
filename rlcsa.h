@@ -20,9 +20,8 @@ typedef struct {
 } pair_t;
 
 typedef struct {
-  uint64_t x[3]; // 0: start of the interval, backward; 1: forward; 2: size of
-                 // the interval
-} bisa_t;
+  int64_t x[3]; // 0: start; 1: start of revcompl; 2: size
+} qint_t;       // a q-(bi)interval
 
 #define pair_lt(x, y) ((x).b < (y).b)
 
@@ -61,7 +60,7 @@ void rlc_destroy(rlcsa_t *rlc);
 /**
  * Write rlcsa index to file
  */
-int rlc_dump(rlcsa_t *rlc, const char *fn);
+int rlc_dump(const rlcsa_t *rlc, const char *fn);
 
 /**
  * Restore rlcsa index from file. Index must be freed by caller.
@@ -79,43 +78,26 @@ rlcsa_t *rlc_restore(const char *fn);
 void rlc_insert(rlcsa_t *rlc, const uint8_t *seq, int64_t n, int nt);
 
 /**
- * Return q-interval for a character
- *
- * @param rlc       the index
- * @param c         the character
- */
-sa_t rlc_init_interval(rlcsa_t *rlc, uint8_t c);
-
-/**
- * LF-mapping (backward extension)
- *
- * @param rlc       the index
- * @param range     a q-interval
- * @param c         a character
- */
-sa_t rlc_lf(rlcsa_t *rlc, sa_t range, uint8_t c);
-
-/**
- * Compute bi-interval for a character (FMD)
+ * Init (bi)interval given a character
  *
  * @param e         the index
  * @param c         the character
  * @param ik        the interval
- */ // FIXME
-#define rlc_init_biinterval(e, c, ik)                                          \
+ */
+#define rlc_init_qinterval(e, c, ik)                                           \
   ((ik).x[0] = (e)->C[(int)(c)],                                               \
    (ik).x[2] = (e)->C[(int)(c) + 1] - (e)->C[(int)(c)],                        \
    (ik).x[1] = (e)->C[fm6_comp(c)])
 
 /**
- * LF-mapping (backward extension) for bi-intervals (FMD)
+ * LF-mapping (backward/forward extension)
  *
  * @param rlc       the index
- * @param range     a q-interval
- * @param c         the character
- * @param backward  backward/forward extension
- */ // FIXME
-int rlc_bilf(const rlcsa_t *rlc, const bisa_t *ik, bisa_t ok[6], int is_back);
+ * @param ij        a q-interval
+ * @param ok        the intervals resulting from extension
+ * @param is_back   backward/forward extension
+ */
+int rlc_extend(const rlcsa_t *rlc, const qint_t *ik, qint_t ok[6], int is_back);
 
 /**
  * Merge rlc2 into rlc1. rlc2 is freed
