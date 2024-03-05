@@ -12,6 +12,7 @@ void pp(rlcsa_t *rlc, const uint8_t *seq, const int64_t l, const char *qname) {
   uint8_t first = 1;
   uint8_t c;
   qint_t sai;
+  qint_t osai[6];
   while (begin >= 0) {
     c = seq[begin];
     rlc_init_qinterval(rlc, c, sai);
@@ -22,7 +23,6 @@ void pp(rlcsa_t *rlc, const uint8_t *seq, const int64_t l, const char *qname) {
     while (sai.x[2] > 0 && begin > 0) {
       --begin;
       c = seq[begin];
-      qint_t osai[6];
       rlc_extend(rlc, &sai, osai, 1);
       sai = osai[seq[begin]];
       // fprintf(stderr, "Backward extending with %c (%d): %ld,%ld,%ld\n",
@@ -42,7 +42,6 @@ void pp(rlcsa_t *rlc, const uint8_t *seq, const int64_t l, const char *qname) {
     while (sai.x[2] > 0) {
       ++end;
       c = seq[end];
-      qint_t osai[6];
       rlc_extend(rlc, &sai, osai, 0);
       sai = osai[fm6_comp(seq[end])];
       // fprintf(stderr, "Forward extending with %c (%d): %ld,%ld,%ld\n",

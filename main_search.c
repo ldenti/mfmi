@@ -28,6 +28,7 @@ int main_search(int argc, char *argv[]) {
   kseq_t *ks = kseq_init(fp);
   int l, i;
   uint8_t *s;
+  qint_t osai[6];
   while ((l = kseq_read(ks)) >= 0) {
     s = (uint8_t *)ks->seq.s;
 
@@ -38,7 +39,6 @@ int main_search(int argc, char *argv[]) {
     rlc_init_qinterval(rlc, s[i], interval);
     --i;
     for (; i >= 0; --i) {
-      qint_t osai[6];
       rlc_extend(rlc, &interval, osai, 1);
       interval = osai[s[i]];
       if (interval.x[2] <= 0) {
