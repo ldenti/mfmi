@@ -14,7 +14,8 @@ int main_index(int argc, char *argv[]) {
 
   int nt = 1;
   int reverse = 0;
-  uint64_t m = (int64_t)(.97 * 10 * 1024 * 1024 * 1024) + 1;
+  uint32_t m = (uint32_t)(0.85 * UINT32_MAX) + 1;
+
   int c;
   while ((c = getopt(argc, argv, "@:rh")) >= 0) {
     switch (c) {

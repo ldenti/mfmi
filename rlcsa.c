@@ -20,7 +20,7 @@ void rlc_destroy(rlcsa_t *rlc) {
   free(rlc);
 }
 
-void rlc_insert(rlcsa_t *rlc, const uint8_t *sequence, int64_t n, int nt) {
+void rlc_insert(rlcsa_t *rlc, const uint8_t *sequence, uint32_t n, int nt) {
   if (rlc->l == 0) {
     rlc_build(rlc, sequence, n, nt);
     return;
@@ -106,7 +106,7 @@ uint32_t setRanks(skew_pair *pairs, uint32_t *keys, ss_ranges *unsorted,
 }
 
 sa_t *prefixDoubling(sa_t *pairs, uint32_t *keys, ss_ranges *unsorted,
-                     uint32_t n, int total, int h, int nt) {
+                     uint32_t n, uint32_t total, int h, int nt) {
   // Double prefix length until sorted
   uint32_t i;
   while (total > 0) {
@@ -132,16 +132,18 @@ sa_t *prefixDoubling(sa_t *pairs, uint32_t *keys, ss_ranges *unsorted,
   return pairs;
 }
 
-sa_t *simpleSuffixSort(const uint8_t *sequence, int64_t n, int64_t nsep,
+sa_t *simpleSuffixSort(const uint8_t *sequence, uint32_t n, uint32_t nsep,
                        int nt) {
-  double t = realtime();
   if (sequence == 0 || n == 0)
     // TODO: fail more gracefully
     exit(1);
+
+  double t = realtime();
   ss_ranges unsorted;
   kv_init(unsorted);
   skew_pair *pairs = (skew_pair *)calloc(n + 1, sizeof(skew_pair));
-  uint32_t *keys = (uint32_t *)calloc(n + 1, sizeof(int64_t)); // In text order.
+  uint32_t *keys =
+      (uint32_t *)calloc(n + 1, sizeof(uint32_t)); // In text order.
 
   // Determine pack factor
   uint32_t alphabet_size = nsep + 5;           // FIXME: hardcoded
@@ -153,12 +155,12 @@ sa_t *simpleSuffixSort(const uint8_t *sequence, int64_t n, int64_t nsep,
   }
 
   // Initialize pairs
-  uint zeros = 0, value = 0, i;
+  uint32_t zeros = 0, value = 0, i;
   for (i = 0; i < h; ++i) {
     value *= alphabet_size;
     if (sequence[i] == 0) {
       value += zeros;
-      zeros++;
+      ++zeros;
     } else {
       value += nsep + sequence[i] - 1;
     }
@@ -188,7 +190,7 @@ sa_t *simpleSuffixSort(const uint8_t *sequence, int64_t n, int64_t nsep,
   t = realtime();
   ss_range a = (ss_range){0, n - 1};
   kv_push(ss_range, unsorted, a);
-  int64_t total = setRanks(pairs, keys, &unsorted, nt, 1);
+  uint32_t total = setRanks(pairs, keys, &unsorted, nt, 1);
   fprintf(stderr, "[M::%s] Set ranks in %.3f sec\n", __func__, realtime() - t);
 
   // TODO: doubling vs tripling?
@@ -204,8 +206,7 @@ sa_t *simpleSuffixSort(const uint8_t *sequence, int64_t n, int64_t nsep,
 
 void rlc_build(rlcsa_t *rlc, const uint8_t *sequence, uint32_t n, int nt) {
   double t;
-  uint32_t i;
-  uint32_t rl, p;
+  uint32_t i, rl, p;
   uint8_t c, lc;
   rlc->l = (int64_t)n;
 
@@ -218,16 +219,16 @@ void rlc_build(rlcsa_t *rlc, const uint8_t *sequence, uint32_t n, int nt) {
 
   // Build SA
   t = realtime();
-  sa_t *sa = simpleSuffixSort(sequence, n, rlc->cnts[0], nt);
-  fprintf(stderr, "[M::%s] Built SA in %.3f sec..\n", __func__, realtime() - t);
+  sa_t *sa = simpleSuffixSort(sequence, n, (uint32_t)rlc->cnts[0], nt);
+  fprintf(stderr, "[M::%s] Built SA in %.3f sec\n", __func__, realtime() - t);
 
-  t = realtime();
   // Build rope by inserting runs
-  lc = sequence[sa[0].a == n ? 0 : sa[0].a - 1];
-  rl = 1;
-  p = 0;
+  t = realtime();
+  lc = sequence[sa[0].a == 0 ? n : sa[0].a - 1]; // current run symbol
+  rl = 1;                                        // current run length
+  p = 0;                                         // insertion position
   for (i = 1; i < n; ++i) {
-    c = sequence[sa[i].a == n ? 0 : sa[i].a - 1];
+    c = sequence[sa[i].a == 0 ? n : sa[i].a - 1];
     if (c == lc) {
       ++rl;
     } else {
@@ -238,8 +239,7 @@ void rlc_build(rlcsa_t *rlc, const uint8_t *sequence, uint32_t n, int nt) {
     lc = c;
   }
   rope_insert_run(rlc->rope, p, lc, rl, 0);
-  fprintf(stderr, "[M::%s] Built rope in %.3f sec..\n", __func__,
-          realtime() - t);
+  fprintf(stderr, "[M::%s] Built rope in %.3f sec\n", __func__, realtime() - t);
   free(sa);
 }
 
@@ -273,7 +273,7 @@ int rlc_extend(const rlcsa_t *rlc, const qint_t *ik, qint_t ok[6],
 /*********************/
 /** *** MERGING *** **/
 /*********************/
-void report_positions(const rlcsa_t *rlc, const uint8_t *seq, int64_t n,
+void report_positions(const rlcsa_t *rlc, const uint8_t *seq, uint32_t n,
                       int64_t *positions) {
   uint32_t current = rlc->cnts[0] - 1;
   positions[n] = current; // immediately after current
@@ -284,12 +284,12 @@ void report_positions(const rlcsa_t *rlc, const uint8_t *seq, int64_t n,
   }
 }
 
-int64_t *get_marks(rlcsa_t *rlc, const uint8_t *seq, uint64_t n,
-                   int_kv separators, int nt) {
+int64_t *get_marks(rlcsa_t *rlc, const uint8_t *seq, uint32_t n,
+                   uint_kv separators, int nt) {
   uint32_t i, begin, sequences = 0;
   for (i = 0; i < n; ++i) {
     if (seq[i] == 0) {
-      kv_push(int64_t, separators, i);
+      kv_push(uint32_t, separators, i);
       ++sequences;
     }
   }
@@ -347,10 +347,11 @@ void merge_ropes(rope_t *rope1, rope_t *rope2, int64_t *marks) {
 
 void rlc_merge(rlcsa_t *rlc1, rlcsa_t *rlc2, const uint8_t *seq, int nt) {
   double t = realtime();
-  uint i, c;
+  uint32_t i;
+  uint8_t c;
 
   // Get $ positions (separators) and "marked positions" (marks)
-  int_kv separators;
+  uint_kv separators;
   kv_init(separators);
   int64_t *marks = get_marks(rlc1, seq, rlc2->l, separators, nt);
   fprintf(stderr, "[M::%s] Computed marks in %.3f sec..\n", __func__,
@@ -365,8 +366,6 @@ void rlc_merge(rlcsa_t *rlc1, rlcsa_t *rlc2, const uint8_t *seq, int nt) {
 #pragma omp parallel for num_threads(nt) schedule(static)
   for (i = 0; i < rlc2->l; ++i)
     marks[i] += i + 1;
-  // fprintf(stderr, "[M::%s] Updated marks in %.3f sec..\n", __func__,
-  // realtime() - t);
 
   // Build C
   for (c = 0; c < 6; ++c)
@@ -375,11 +374,9 @@ void rlc_merge(rlcsa_t *rlc1, rlcsa_t *rlc2, const uint8_t *seq, int nt) {
   for (c = 1; c < 6; ++c)
     rlc1->C[c] = rlc1->C[c - 1] + rlc1->cnts[c - 1];
 
-  t = realtime();
-
   // Merge ropes using "marked positions"
+  t = realtime();
   merge_ropes(rlc1->rope, rlc2->rope, marks);
-
   fprintf(stderr, "[M::%s] Merged ropes in %.3f sec..\n", __func__,
           realtime() - t);
 

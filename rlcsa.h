@@ -15,8 +15,8 @@
 // void radix_sort(int64_t *array, int64_t offset, int64_t end, int shift);
 
 typedef struct {
-  int64_t a;
-  int64_t b;
+  uint32_t a;
+  uint32_t b;
 } pair_t;
 
 typedef struct {
@@ -37,8 +37,8 @@ typedef struct ss_ranges {
 } ss_ranges;
 
 typedef struct uint_kv {
-  kvec_t(int64_t);
-} int_kv;
+  kvec_t(uint32_t);
+} uint_kv;
 
 typedef struct { // the rlcsa index
   int64_t l;     // length of indexed text
@@ -75,7 +75,7 @@ rlcsa_t *rlc_restore(const char *fn);
  * @param n         input string length (last 0 not included)
  * @param nt        number of threads
  */
-void rlc_insert(rlcsa_t *rlc, const uint8_t *seq, int64_t n, int nt);
+void rlc_insert(rlcsa_t *rlc, const uint8_t *seq, uint32_t n, int nt);
 
 /**
  * Build index by inserting a 0-separated sequence. If index is not empty,
