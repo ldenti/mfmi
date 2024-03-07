@@ -114,20 +114,16 @@ int main_index(int argc, char *argv[]) {
   return 0;
 }
 
-int main_index_single(int argc, char *argv[]) {
+int main_index_records(int argc, char *argv[]) {
   (void)argc; // suppress unused parameter warning
   double t_start = realtime();
 
   int nt = 1;
-  int reverse = 0;
   int c;
-  while ((c = getopt(argc, argv, "@:rh")) >= 0) {
+  while ((c = getopt(argc, argv, "@:h")) >= 0) {
     switch (c) {
     case '@':
       nt = atoi(optarg);
-      continue;
-    case 'r':
-      reverse = 1;
       continue;
     case 'h':
       printf("HELP\n");
@@ -149,7 +145,7 @@ int main_index_single(int argc, char *argv[]) {
   kseq_t *ks;
   uint8_t *s;
   kstring_t buf = {0, 0, 0};
-  kstring_t buf_rc = {0, 0, 0};
+  double ct, rt;
   while (optind < argc) {
     fa_path = argv[optind++];
 
@@ -158,53 +154,40 @@ int main_index_single(int argc, char *argv[]) {
     while ((l = kseq_read(ks)) >= 0) {
       s = (uint8_t *)ks->seq.s;
 
-      // change encoding
       for (i = 0; i < l; ++i)
         s[i] = fm6(s[i]);
+      kputsn((char *)s, l + 1, &buf);
 
-      // Add forward to buffer
-      kputsn((char *)ks->seq.s, ks->seq.l + 1, &buf);
-      if (reverse) {
-        // Add reverse to buffer
-        for (i = 0; i < (l >> 1); ++i) {
-          int tmp = s[l - 1 - i];
-          tmp = fm6_comp(tmp);
-          s[l - 1 - i] = fm6_comp(s[i]);
-          s[i] = tmp;
-        }
-        if (l & 1)
-          s[i] = fm6_comp(s[i]);
-        kputsn((char *)s, ks->seq.l + 1, &buf_rc);
+      for (i = 0; i < (l >> 1); ++i) {
+        int tmp = s[l - 1 - i];
+        tmp = fm6_comp(tmp);
+        s[l - 1 - i] = fm6_comp(s[i]);
+        s[i] = tmp;
       }
+      if (l & 1)
+        s[i] = fm6_comp(s[i]);
+      kputsn((char *)s, l + 1, &buf);
+
+      ct = cputime(), rt = realtime();
+      rlc_insert(rlc, (const uint8_t *)buf.s, (uint32_t)buf.l, nt);
+      fprintf(stderr,
+              "[M::%s] inserted %ld symbols in %.3f sec; %.3f CPU sec\n",
+              __func__, (long)buf.l, realtime() - rt, cputime() - ct);
+      buf.l = 0;
     }
-    double ct = cputime(), rt = realtime();
-    rlc_insert(rlc, (const uint8_t *)buf.s, (int64_t)buf.l, nt);
-    fprintf(stderr, "[M::%s] inserted %ld symbols in %.3f sec; %.3f CPU sec\n",
-            __func__, (long)buf.l, realtime() - rt, cputime() - ct);
-    buf.l = 0;
-
-    ct = cputime(), rt = realtime();
-    rlc_insert(rlc, (const uint8_t *)buf_rc.s, (int64_t)buf_rc.l, nt);
-    fprintf(stderr, "[M::%s] inserted %ld symbols in %.3f sec; %.3f CPU sec\n",
-            __func__, (long)buf_rc.l, realtime() - rt, cputime() - ct);
-    buf_rc.l = 0;
-
     kseq_destroy(ks);
     gzclose(fp);
-
     fprintf(stderr,
             "[M::%s] indexed %s - Total time: %.3f sec; CPU: %.3f sec\n",
             __func__, fa_path, realtime() - t_start, cputime());
   }
-  free(buf.s);
-  free(buf_rc.s);
 
   rlc_dump(rlc, "-");
-  rlc_destroy(rlc);
-
   fprintf(stderr,
           "[M::%s] dumped index - Total time: %.3f sec; CPU: %.3f sec\n",
           __func__, realtime() - t_start, cputime());
+
+  rlc_destroy(rlc);
 
   return 0;
 }
