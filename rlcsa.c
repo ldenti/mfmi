@@ -39,6 +39,14 @@ int rlc_dump(const rlcsa_t *rlc, const char *fn) {
   fwrite(rlc->C, 8, 6, fp);
   fwrite(rlc->cnts, 8, 6, fp);
   rope_dump(rlc->rope, fp);
+
+  // DEBUG
+  // rpitr_t *it = calloc(1, sizeof(rpitr_t));
+  // rope_itr_first(rlc->rope, it);
+  // uint8_t *b1;
+  // while ((b1 = (uint8_t *)rope_itr_next_block(it)) != 0)
+  //   rle_print(b1, 1);
+
   fclose(fp);
   return 1;
 }
@@ -153,6 +161,8 @@ sa_t *simpleSuffixSort(const uint8_t *sequence, uint32_t n, uint32_t nsep,
     ++h;
     pack_multiplier *= alphabet_size;
   }
+  // FIXME: uncomment this for very short strings
+  // h = h > n ? 1 : h;
 
   // Initialize pairs
   uint32_t zeros = 0, value = 0, i;
