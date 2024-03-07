@@ -15,6 +15,8 @@
     _a > _b ? _a : _b;                                                         \
   })
 
+#define fm6(a) ((a) < 128 ? seq_nt6_table[(a)] : 5)
+
 #define fm6_comp(a) ((a) >= 1 && (a) <= 4 ? 5 - (a) : (a))
 
 #define fm6_set_intv(e, c, ik)                                                 \

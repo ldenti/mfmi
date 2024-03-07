@@ -11,21 +11,21 @@
 
 KSEQ_INIT(gzFile, gzread)
 
-int main_index(int argc, char *argv[]) {
-  // hardcoded parameters
+int main_index_records(int argc, char *argv[]) {
+  (void)argc; // suppress unused parameter warning
+
   int block_len = ROPE_DEF_BLOCK_LEN, max_nodes = ROPE_DEF_MAX_NODES,
       so = MR_SO_RCLO;
+  double t_start = realtime();
 
-  // the index
   mrope_t *mr = mr_init(max_nodes, block_len, so);
 
-  // Parsing the input sample
-  int optind = 1;
   int i, l;
   char *fa_path;
   gzFile fp;
   kseq_t *ks;
   uint8_t *s;
+  double rt, ct;
   while (optind < argc) {
     fa_path = argv[optind++];
 
@@ -36,7 +36,7 @@ int main_index(int argc, char *argv[]) {
 
       // change encoding
       for (i = 0; i < l; ++i)
-        s[i] = s[i] < 128 ? seq_nt6_table[s[i]] : 5;
+        s[i] = fm6(s[i]);
 
       // Reverse the sequence
       for (i = 0; i < (l >> 1); ++i) {
@@ -44,22 +44,34 @@ int main_index(int argc, char *argv[]) {
         s[l - 1 - i] = s[i];
         s[i] = tmp;
       }
-
+      ct = cputime(), rt = realtime();
       mr_insert1(mr, s);
+      fprintf(stderr,
+              "[M::%s] inserted %ld symbols in %.3f sec; %.3f CPU sec\n",
+              __func__, (long)l, realtime() - rt, cputime() - ct);
 
       // Add reverse to buffer
       for (i = 0; i < (l >> 1); ++i) {
         int tmp = s[l - 1 - i];
         tmp = (tmp >= 1 && tmp <= 4) ? 5 - tmp : tmp;
-        s[l - 1 - i] = fm6_comp(s[i]);
+        s[l - 1 - i] = (s[i] >= 1 && s[i] <= 4) ? 5 - s[i] : s[i];
         s[i] = tmp;
       }
       if (l & 1)
-        s[i] = fm6_comp(s[i]);
+        s[i] = (s[i] >= 1 && s[i] <= 4) ? 5 - s[i] : s[i];
+      ct = cputime(), rt = realtime();
       mr_insert1(mr, s);
+      fprintf(stderr,
+              "[M::%s] inserted %ld symbols in %.3f sec; %.3f CPU sec\n",
+              __func__, (long)l, realtime() - rt, cputime() - ct);
     }
+
     kseq_destroy(ks);
     gzclose(fp);
+
+    fprintf(stderr,
+            "[M::%s] indexed %s - Total time: %.3f sec; CPU: %.3f sec\n",
+            __func__, fa_path, realtime() - t_start, cputime());
   }
 
   // dump index to stdout
@@ -81,6 +93,129 @@ int main_index(int argc, char *argv[]) {
   }
   rld_enc_finish(e, &di);
   rld_dump(e, "-");
+  fprintf(stderr,
+          "[M::%s] dumped index - Total time: %.3f sec; CPU: %.3f sec\n",
+          __func__, realtime() - t_start, cputime());
+
+  mr_destroy(mr);
+
+  return 0;
+}
+
+int main_index(int argc, char *argv[]) {
+  (void)argc; // suppress unused parameter warning
+  double t_start = realtime();
+  int block_len = ROPE_DEF_BLOCK_LEN, max_nodes = ROPE_DEF_MAX_NODES,
+      so = MR_SO_RCLO;
+  uint32_t m = (uint32_t)(0.85 * UINT32_MAX) + 1;
+
+  int threads = 0;
+  int c;
+  while ((c = getopt(argc, argv, "@")) >= 0) {
+    switch (c) {
+    case '@':
+      threads = 1;
+      continue;
+    default:
+      printf("HELP\n");
+      return 1;
+    }
+  }
+  if (argc - optind < 1) {
+    printf("HELP\n");
+    return 1;
+  }
+
+  mrope_t *mr = mr_init(max_nodes, block_len, so);
+
+  int i, l;
+  char *fa_path;
+  gzFile fp;
+  kseq_t *ks;
+  uint8_t *s;
+  kstring_t buf = {0, 0, 0};
+  double ct, rt;
+  while (optind < argc) {
+    fa_path = argv[optind++];
+
+    fp = gzopen(fa_path, "rb");
+    ks = kseq_init(fp);
+    while ((l = kseq_read(ks)) >= 0) {
+      s = (uint8_t *)ks->seq.s;
+
+      // change encoding
+      for (i = 0; i < l; ++i)
+        s[i] = fm6(s[i]);
+      // Reverse the sequence
+      for (i = 0; i < (l >> 1); ++i) {
+        int tmp = s[l - 1 - i];
+        s[l - 1 - i] = s[i];
+        s[i] = tmp;
+      }
+
+      // Add forward to buffer
+      kputsn((char *)s, l + 1, &buf);
+
+      // Add reverse to buffer
+      for (i = 0; i < (l >> 1); ++i) {
+        int tmp = s[l - 1 - i];
+        tmp = fm6_comp(tmp);
+        s[l - 1 - i] = fm6_comp(s[i]);
+        s[i] = tmp;
+      }
+      if (l & 1)
+        s[i] = fm6_comp(s[i]);
+      kputsn((char *)s, l + 1, &buf);
+
+      if (buf.l >= m) {
+        ct = cputime(), rt = realtime();
+        mr_insert_multi(mr, buf.l, (const uint8_t *)buf.s, threads);
+        fprintf(stderr,
+                "[M::%s] inserted %ld symbols in %.3f sec; %.3f CPU sec\n",
+                __func__, (long)buf.l, realtime() - rt, cputime() - ct);
+        buf.l = 0;
+      }
+    }
+    if (buf.l) {
+      ct = cputime(), rt = realtime();
+      mr_insert_multi(mr, buf.l, (const uint8_t *)buf.s, threads);
+      fprintf(stderr,
+              "[M::%s] inserted %ld symbols in %.3f sec; %.3f CPU sec\n",
+              __func__, (long)buf.l, realtime() - rt, cputime() - ct);
+      buf.l = 0;
+    }
+    kseq_destroy(ks);
+    gzclose(fp);
+
+    fprintf(stderr,
+            "[M::%s] indexed %s - Total time: %.3f sec; CPU: %.3f sec\n",
+            __func__, fa_path, realtime() - t_start, cputime());
+  }
+
+  free(buf.s);
+
+  // dump index to stdout
+  mritr_t itr;
+  const uint8_t *block;
+  rld_t *e = 0;
+  rlditr_t di;
+  e = rld_init(6, 3);
+  rld_itr_init(e, &di, 0);
+  mr_itr_first(mr, &itr, 1);
+  while ((block = mr_itr_next_block(&itr)) != 0) {
+    const uint8_t *q = block + 2, *end = block + 2 + *rle_nptr(block);
+    while (q < end) {
+      int c = 0;
+      int64_t l;
+      rle_dec1(q, c, l);
+      rld_enc(e, &di, l, c);
+    }
+  }
+  rld_enc_finish(e, &di);
+  rld_dump(e, "-");
+  fprintf(stderr,
+          "[M::%s] dumped index - Total time: %.3f sec; CPU: %.3f sec\n",
+          __func__, realtime() - t_start, cputime());
 
   mr_destroy(mr);
 
