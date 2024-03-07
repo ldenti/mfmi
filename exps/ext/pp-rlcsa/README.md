@@ -8,5 +8,6 @@ cd ..
 make -j2
 
 ./rl index -r -i index ../../../example/4.fa.gz
+./rl index-rec -r -i index-rec ../../../example/4.fa.gz
 ./rl pingpong index ../../../example/reads.fq.gz > specific_strings.sfs
 ```
