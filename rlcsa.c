@@ -275,7 +275,7 @@ int rlc_extend(const rlcsa_t *rlc, const qint_t *ik, qint_t ok[6],
 /*********************/
 void report_positions(const rlcsa_t *rlc, const uint8_t *seq, uint32_t n,
                       int64_t *positions) {
-  uint32_t current = rlc->cnts[0] - 1;
+  int64_t current = rlc->cnts[0] - 1;
   positions[n] = current; // immediately after current
   for (int64_t i = n - 1; i >= 0; --i) {
     uint8_t c = seq[i];
@@ -373,6 +373,8 @@ void rlc_merge(rlcsa_t *rlc1, rlcsa_t *rlc2, const uint8_t *seq, int nt) {
   rlc1->C[0] = 0;
   for (c = 1; c < 6; ++c)
     rlc1->C[c] = rlc1->C[c - 1] + rlc1->cnts[c - 1];
+
+  rlc1->l += rlc2->l;
 
   // Merge ropes using "marked positions"
   t = realtime();

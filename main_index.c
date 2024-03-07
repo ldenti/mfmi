@@ -58,7 +58,7 @@ int main_index(int argc, char *argv[]) {
         s[i] = fm6(s[i]);
 
       // Add forward to buffer
-      kputsn((char *)ks->seq.s, ks->seq.l + 1, &buf);
+      kputsn((char *)s, l + 1, &buf);
       if (reverse) {
         // Add reverse to buffer
         for (i = 0; i < (l >> 1); ++i) {
@@ -69,11 +69,11 @@ int main_index(int argc, char *argv[]) {
         }
         if (l & 1)
           s[i] = fm6_comp(s[i]);
-        kputsn((char *)s, ks->seq.l + 1, &buf);
+        kputsn((char *)s, l + 1, &buf);
       }
       if (buf.l >= m) {
         double ct = cputime(), rt = realtime();
-        rlc_insert(rlc, (const uint8_t *)buf.s, (int64_t)buf.l, nt);
+        rlc_insert(rlc, (const uint8_t *)buf.s, (uint32_t)buf.l, nt);
         fprintf(stderr,
                 "[M::%s] inserted %ld symbols in %.3f sec; %.3f CPU sec\n",
                 __func__, (long)buf.l, realtime() - rt, cputime() - ct);
@@ -82,7 +82,7 @@ int main_index(int argc, char *argv[]) {
     }
     if (buf.l) {
       double ct = cputime(), rt = realtime();
-      rlc_insert(rlc, (const uint8_t *)buf.s, (int64_t)buf.l, nt);
+      rlc_insert(rlc, (const uint8_t *)buf.s, (uint32_t)buf.l, nt);
       fprintf(stderr,
               "[M::%s] inserted %ld symbols in %.3f sec; %.3f CPU sec\n",
               __func__, (long)buf.l, realtime() - rt, cputime() - ct);
