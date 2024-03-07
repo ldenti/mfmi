@@ -4,3 +4,4 @@
 [submodule "exps/ext/pp-rlcsa/rlcsa"]
 	path = exps/ext/pp-rlcsa/rlcsa
 	url = https://github.com/ldenti/rlcsa.git
+	ignore = dirty
