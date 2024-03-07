@@ -1,10 +1,8 @@
 #!/usr/bin/env nextflow
 
-params.fa = "/home/ld/data/mfmi/test.fa"
-params.vcf = "/home/ld/data/mfmi/test.vcf.gz"
-
-params.rlcsa_bin = "/home/ld/code/panpp/PANPP"
-params.svdss_bin = "/home/ld/code/SVDSS_linux_x86-64"
+params.fa = "/home/denti/data/DROSOPHILA/2L.fa"
+params.vcf = "/home/denti/data/DROSOPHILA/2L.vcf.gz"
+params.n = 1
 
 process get_samples {
     input:
@@ -53,7 +51,7 @@ process get_fasta {
     '''
     while read idx
     do
-        bcftools consensus --haplotype 1 --samples $idx --fasta-ref !{params.fa} !{params.vcf} | sed "s/>.*$/>$idx/g" 
+        bcftools consensus --haplotype 1 --sample $idx --fasta-ref !{params.fa} !{params.vcf} | sed "s/>.*$/>$idx/g" 
     done < !{list} > !{t}.fa
     wc -l !{t}.fa
     '''
@@ -86,12 +84,13 @@ process mfmi_query {
 process rlcsa_index {
     input:
     path(fa)
+    val(x)
     
     output:
     path("INDEX.rlcsa.array")
 
     """
-    ${params.rlcsa_bin} index -r -@1 -i INDEX $fa
+    $baseDir/ext/pp-rlcsa/rl index -r -@1 -i INDEX $fa
     """
 }
 
@@ -103,19 +102,20 @@ process rlcsa_query {
     path("rlcsa.sfs")
     
     """
-    ${params.rlcsa_bin} search INDEX $fa -a > rlcsa.sfs
+    $baseDir/ext/pp-rlcsa/rl pingpong INDEX $fa > rlcsa.sfs
     """
 }
 
 process svdss_index {
     input:
     path(fa)
+    val(x)
     
     output:
     path("index.fmd")
 
     """
-    ${params.svdss_bin} index --fasta $fa --index index.fmd
+    $baseDir/ext/pp-ropebwt2/rt2 index $fa > index.fmd
     """
 }
 
@@ -124,11 +124,10 @@ process svdss_query {
     tuple path(index), path(fa)
 
     output:
-    path("svdss.sfs")
+    path("ropebwt2.sfs")
     
     """
-    ${params.svdss_bin} search --index $index --fastq $fa
-    cat *.sfs > svdss.sfs
+    $baseDir/ext/pp-ropebwt2/rt2 pingpong $index $fa > ropebwt2.sfs
     """
 }
 
@@ -136,7 +135,7 @@ process svdss_query {
  * Define the workflow
  */
 workflow {
-    ( get_samples(1) | ( get_rlist & get_qlist ) | mix | get_fasta ).branch {
+    ( get_samples(params.n) | ( get_rlist & get_qlist ) | mix | get_fasta ).branch {
         ref: it[0] == 'r'
         query: it[0] == 'q'
     }.set { input }
@@ -148,8 +147,8 @@ workflow {
     ref.view { "ref: $it" }
     query.view { "query: $it" }
 
-    mfmi_index(ref).concat(query) | collect | mfmi_query | view
-    svdss_index(ref).concat(query) | collect | svdss_query | view
-    rlcsa_index(ref).concat(query) | collect | rlcsa_query | view
+    x = mfmi_index(ref).concat(query) | collect | mfmi_query | view
+    xx = svdss_index(ref, x).concat(query) | collect | svdss_query | view
+    xxx = rlcsa_index(ref, xx).concat(query) | collect | rlcsa_query | view
 
 }
