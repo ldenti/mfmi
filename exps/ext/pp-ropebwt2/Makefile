@@ -1,5 +1,5 @@
 CC=		gcc
-CFLAGS=		-O3 -DNDEBUG -Wall -I./ropebwt2/ -fopenmp
+CFLAGS=		-O2 -DNDEBUG -Wall -I./ropebwt2/ -fopenmp
 LIBS=		-lz -lpthread
 
 .SUFFIXES:.c .o
