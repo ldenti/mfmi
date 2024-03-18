@@ -43,11 +43,35 @@ int main_index(int argc, char *argv[]) {
   kstring_t buf_rc = {0, 0, 0};
   int i, l;
   char *fa_path;
+  CSA::RLCSA *index;
+  double rt;
   while (optind < argc) {
     fa_path = argv[optind++];
     fp = gzopen(fa_path, "rb");
     ks = kseq_init(fp);
     while ((l = kseq_read(ks)) >= 0) {
+      if (buf.l + l > INT32_MAX) {
+        rt = realtime();
+        index = new CSA::RLCSA((CSA::uchar *)buf.s, buf.l, block_size,
+                               sample_rate, threads, false);
+        index->writeTo(fa_path); // TODO: store to tmp dir
+        delete index;
+        builder.insertFromFile(fa_path, (CSA::uchar *)buf.s);
+        fprintf(stderr, "[M::%s] inserted %ld symbols in %.3f sec\n", __func__,
+                (long)buf.l, realtime() - rt);
+        buf.l = 0;
+
+        rt = realtime();
+        index = new CSA::RLCSA((CSA::uchar *)buf_rc.s, buf_rc.l, block_size,
+                               sample_rate, threads, false);
+        index->writeTo(fa_path); // TODO: store to tmp dir
+        delete index;
+        builder.insertFromFile(fa_path, (CSA::uchar *)buf_rc.s);
+        fprintf(stderr, "[M::%s] inserted %ld symbols in %.3f sec\n", __func__,
+                (long)buf_rc.l, realtime() - rt);
+        buf_rc.l = 0;
+      }
+
       s = (uint8_t *)ks->seq.s;
 
       // change encoding
@@ -68,40 +92,44 @@ int main_index(int argc, char *argv[]) {
         s[i] = (s[i] >= 1 && s[i] <= 4) ? 5 - s[i] : s[i];
       kputsn((char *)s, ks->seq.l + 1, &buf_rc);
     }
-    // spdlog::info("Creating partial index from {} symbols", buf.l);
-    CSA::RLCSA *index = new CSA::RLCSA((CSA::uchar *)buf.s, buf.l, block_size,
-                                       sample_rate, threads, false);
-    // spdlog::info("Storing partial index");
-    index->writeTo(fa_path); // TODO: store to tmp dir
-    delete index;
-    // spdlog::info("Merging partial index");
-    builder.insertFromFile(fa_path, (CSA::uchar *)buf.s);
-    buf.l = 0;
+    if (buf.l) {
+      rt = realtime();
+      index = new CSA::RLCSA((CSA::uchar *)buf.s, buf.l, block_size,
+                             sample_rate, threads, false);
+      index->writeTo(fa_path); // TODO: store to tmp dir
+      delete index;
+      builder.insertFromFile(fa_path, (CSA::uchar *)buf.s);
+      fprintf(stderr, "[M::%s] inserted %ld symbols in %.3f sec\n", __func__,
+              (long)buf.l, realtime() - rt);
+      buf.l = 0;
 
-    // spdlog::info("Creating partial index from {} symbols", buf.l);
-    index = new CSA::RLCSA((CSA::uchar *)buf_rc.s, buf_rc.l, block_size,
-                           sample_rate, threads, false);
-    // spdlog::info("Storing partial index");
-    index->writeTo(fa_path); // TODO: store to tmp dir
-    delete index;
-    // spdlog::info("Merging partial index");
-    builder.insertFromFile(fa_path, (CSA::uchar *)buf_rc.s);
-    buf_rc.l = 0;
+      rt = realtime();
+      index = new CSA::RLCSA((CSA::uchar *)buf_rc.s, buf_rc.l, block_size,
+                             sample_rate, threads, false);
+      index->writeTo(fa_path); // TODO: store to tmp dir
+      delete index;
+      builder.insertFromFile(fa_path, (CSA::uchar *)buf_rc.s);
+      fprintf(stderr, "[M::%s] inserted %ld symbols in %.3f sec\n", __func__,
+              (long)buf_rc.l, realtime() - rt);
+      buf_rc.l = 0;
+    }
     kseq_destroy(ks);
     gzclose(fp);
   }
   free(buf.s);
   free(buf_rc.s);
 
-  // spdlog::info("Dumping index..");
-  CSA::RLCSA *rlcsa = builder.getRLCSA();
-  if (rlcsa != 0 && rlcsa->isOk()) {
+  rt = realtime();
+  index = builder.getRLCSA();
+  if (index != 0 && index->isOk()) {
     // std::cout << std::endl;
     // rlcsa->printInfo();
     // rlcsa->reportSize(true);
-    rlcsa->writeTo(index_prefix);
+    index->writeTo(index_prefix);
   }
-  delete rlcsa;
+  fprintf(stderr, "[M::%s] dumped index in %.3f sec\n", __func__,
+          realtime() - rt);
+  delete index;
 
   return 0;
 }
