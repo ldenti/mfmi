@@ -7,7 +7,7 @@ LIBS=		-lz # -lpthread
 .c.o:
 		$(CC) -c $(CFLAGS) $(DFLAGS) $(INCLUDES) $< -o $@
 
-all: CFLAGS+=-g -O3 -DNDEBUG
+all: CFLAGS+=-g -O2 -DNDEBUG
 all: mfmi
 
 debug: CFLAGS+=-DDEBUG -g -O0
