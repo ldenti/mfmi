@@ -13,7 +13,7 @@ int main_index(int argc, char *argv[]) {
   // uint32_t m = (uint32_t)(INT32_MAX); // (uint32_t)(0.85 * UINT32_MAX) + 1;
 
   int c;
-  while ((c = getopt(argc, argv, "@:rh")) >= 0) {
+  while ((c = getopt(argc, argv, "@:h")) >= 0) {
     switch (c) {
     case '@':
       nt = atoi(optarg);
@@ -107,6 +107,7 @@ int main_index(int argc, char *argv[]) {
   // uint8_t *b;
   // while ((b = (uint8_t *)rope_itr_next_block(it)) != 0)
   //   rle_print(b, 1);
+
   ct = cputime(), rt = realtime();
   rlc_dump(rlc, "-"); // TODO: add path to CLI
   rlc_destroy(rlc);
