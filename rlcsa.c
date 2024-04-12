@@ -317,42 +317,171 @@ int64_t *get_marks(rlcsa_t *rlc, const uint8_t *seq, uint32_t n,
   return marks;
 }
 
-void merge_ropes(rope_t *rope1, rope_t *rope2, int64_t *marks) {
+rope_t *merge_ropes(rope_t *rope1, rope_t *rope2, int64_t *marks, uint32_t nm) {
+  rope_t *rope = rope_init(ROPE_DEF_MAX_NODES, ROPE_DEF_BLOCK_LEN);
+
   rpitr_t *it1 = calloc(1, sizeof(rpitr_t));
-  rope_itr_first(rope1, it1);
-
-  // debug
-  // uint8_t *b1;
-  // while ((b1 = (uint8_t *) rope_itr_next_block(it1)) != 0)
-  //     rle_print(b1, 1);
-
   rpitr_t *it2 = calloc(1, sizeof(rpitr_t));
+  rope_itr_first(rope1, it1);
   rope_itr_first(rope2, it2);
+
+  uint8_t *b1, *b1_i, *b1_end;
   uint8_t *b2, *b2_i, *b2_end;
-  uint8_t c2;
-  int64_t l2, m = 0;
+  uint8_t c1, c2, cc; // decoded char from ropes + current char we are inserting
+  int64_t l1, l2,
+      cl;         // decoded run lenghts + current length of run we are building
+  int64_t m = 0;  // current mark
+  int64_t p1 = 0; // position on run from rope1
+  int64_t p2 = 0; // position on run from rope2
+  int64_t pn_i = 0; // inserting position on new rope
+  int64_t pn = 0;   // current position on new rope
+
+  b1 = (uint8_t *)rope_itr_next_block(it1);
+  b1_i = b1 + 2;
+  b1_end = b1 + 2 + *rle_nptr(b1);
+  rle_dec1(b1_i, c1, l1);
+
+  b2 = (uint8_t *)rope_itr_next_block(it2);
+  b2_i = b2 + 2;
+  b2_end = b2 + 2 + *rle_nptr(b2);
+  rle_dec1(b2_i, c2, l2);
+
+  if (marks[0] == pn) {
+    cc = c2;
+    cl = 1;
+    ++p2;
+    ++m;
+    ++pn;
+  } else {
+    cc = c1;
+    cl = 1;
+    ++p1;
+    ++pn;
+    if (l1 == p1) {
+      // we reinitialize b1 here if needed since in the next while we iterate
+      // over b1, so we need to have it set to 0 if we consumed rope1
+      if (b1_i == b1_end) {
+        b1 = (uint8_t *)rope_itr_next_block(it1);
+        if (b1 != 0) {
+          b1_i = b1 + 2;
+          b1_end = b1 + 2 + *rle_nptr(b1);
+        }
+      }
+      if (b1 != 0)
+        rle_dec1(b1_i, c1, l1);
+      p1 = 0;
+    }
+  }
+
+  while (b1 != 0) {
+    if (m < nm && pn == marks[m]) {
+      // we first check if we have consumed current run from rope2, if yes, we
+      // move to next run
+      if (l2 == p2) {
+        if (b2_i == b2_end) {
+          b2 = (uint8_t *)rope_itr_next_block(it2);
+          // we don't have to do any check here since if we are here, we are
+          // sure that we have at least another symbol from rope2
+          b2_i = b2 + 2;
+          b2_end = b2 + 2 + *rle_nptr(b2);
+        }
+        if (b2 != 0)
+          rle_dec1(b2_i, c2, l2);
+        p2 = 0;
+      }
+      if (cc == c2) {
+        cl += 1;
+      } else {
+        // fprintf(stderr, "Run: %ld %c\n", cl, "$ACGTN"[cc]);
+        rope_insert_run(rope, pn_i, cc, cl, NULL);
+        pn_i += cl;
+        cl = 1;
+        cc = c2;
+      }
+      ++p2;
+      ++m;
+      /* if (m == nm) */
+      /*   fprintf(stderr, "Consumed rope2, continuing rope1\n"); */
+      ++pn;
+    } else {
+      if (l1 == p1) {
+        if (b1_i == b1_end) {
+          b1 = (uint8_t *)rope_itr_next_block(it1);
+          if (b1 == 0) {
+            /* if (m == nm) */
+            /*   fprintf(stderr, "Consumed rope1. Ending\n"); */
+            /* else */
+            /*   fprintf(stderr, "Consumed rope1, moving to rope2\n"); */
+            break;
+          }
+          b1_i = b1 + 2;
+          b1_end = b1 + 2 + *rle_nptr(b1);
+        }
+        if (b1 != 0)
+          rle_dec1(b1_i, c1, l1);
+        p1 = 0;
+      }
+      if (cc == c1) {
+        cl += 1;
+      } else {
+        // fprintf(stderr, "Run: %ld %c\n", cl, "$ACGTN"[cc]);
+        rope_insert_run(rope, pn_i, cc, cl, NULL);
+        pn_i += cl;
+        cl = 1;
+        cc = c1;
+      }
+      ++p1;
+      ++pn;
+    }
+  }
+
+  // consume current run from rope2
+  if (p2 < l2) {
+    assert(m < nm);
+    if (cc == c2) {
+      // fprintf(stderr, "1 Run: %ld %c\n", cl + l2 - p2, "$ACGTN"[c2]);
+      rope_insert_run(rope, pn_i, c2, cl + l2 - p2, NULL);
+      pn_i += cl + l2 - p2;
+    } else {
+      // fprintf(stderr, "2 Run: %ld %c\n", cl, "$ACGTN"[cc]);
+      rope_insert_run(rope, pn_i, cc, cl, NULL);
+      pn_i += cl;
+      // fprintf(stderr, "3 Run: %ld %c\n", l2 - p2, "$ACGTN"[c2]);
+      rope_insert_run(rope, pn_i, c2, l2 - p2, NULL);
+      pn_i += l2 - p2;
+    }
+  } else {
+    assert(m < nm);
+    // fprintf(stderr, "4 Run: %ld %c\n", cl, "$ACGTN"[cc]);
+    rope_insert_run(rope, pn_i, cc, cl, NULL);
+    pn_i += cl;
+  }
+
+  // consume current block from rope2
+  while (b2 != 0 && b2_i < b2_end) {
+    assert(m < nm);
+    rle_dec1(b2_i, c2, l2);
+    // fprintf(stderr, "5 Run: %ld %c\n", l2, "$ACGTN"[c2]);
+    rope_insert_run(rope, pn_i, c2, l2, NULL);
+    pn_i += l2;
+  }
+  // consume rest of rope2
   while ((b2 = (uint8_t *)rope_itr_next_block(it2)) != 0) {
-    // rle_print(b2, 0);
+    assert(m < nm);
     b2_i = b2 + 2;
     b2_end = b2 + 2 + *rle_nptr(b2);
     while (b2_i < b2_end) {
       rle_dec1(b2_i, c2, l2);
-      while (l2 > 0) {
-        // TODO: insert runs instead of single symbols
-        rope_insert_run(rope1, marks[m], c2, 1, 0);
-        ++m;
-        --l2;
-      }
+      // fprintf(stderr, "6 Run: %ld %c\n", l2, "$ACGTN"[c2]);
+      rope_insert_run(rope, pn_i, c2, l2, NULL);
+      pn_i += l2;
     }
   }
-
-  // debug
-  // rope_itr_first(rope1, it1);
-  // while ((b1 = (uint8_t *) rope_itr_next_block(it1)) != 0)
-  //     rle_print(b1, 1);
-
+  /* fprintf(stderr, "Length: %ld\n", pn_i); */
   free(it1);
   free(it2);
+
+  return rope;
 }
 
 void rlc_merge(rlcsa_t *rlc1, rlcsa_t *rlc2, const uint8_t *seq, int nt) {
@@ -388,7 +517,10 @@ void rlc_merge(rlcsa_t *rlc1, rlcsa_t *rlc2, const uint8_t *seq, int nt) {
 
   // Merge ropes using "marked positions"
   t = realtime();
-  merge_ropes(rlc1->rope, rlc2->rope, marks);
+  rope_t *new_rope = merge_ropes(rlc1->rope, rlc2->rope, marks, rlc2->l);
+  rope_destroy(rlc1->rope);
+  rlc1->rope = new_rope;
+
   fprintf(stderr, "[M::%s] Merged ropes in %.3f sec..\n", __func__,
           realtime() - t);
 
