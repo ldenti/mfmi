@@ -125,10 +125,10 @@ void rle_print(const uint8_t *block, int expand)
 		int c;
 		int64_t l, x;
 		rle_dec1(q, c, l);
-		if (expand) for (x = 0; x < l; ++x) putchar("$ACGTN"[c]);
-		else printf("%c%ld", "$ACGTN"[c], (long)l);
+		if (expand) for (x = 0; x < l; ++x) fprintf(stderr, "%c", "$ACGTN"[c]);
+		else fprintf(stderr, "%c%ld", "$ACGTN"[c], (long)l);
 	}
-	putchar('\n');
+  fprintf(stderr, "\n");
 }
 
 void rle_rank2a(const uint8_t *block, int64_t x, int64_t y, int64_t *cx, int64_t *cy, const int64_t ec[6])
