@@ -5,18 +5,22 @@
 #include "kseq.h"
 #include "rlcsa.h"
 #include "utils.h"
+#include "rld0.h"
 
 KSEQ_INIT(gzFile, gzread)
 
 int main_index(int argc, char *argv[]) {
   int nt = 1;
   // uint32_t m = (uint32_t)(INT32_MAX); // (uint32_t)(0.85 * UINT32_MAX) + 1;
-
+  char otype = 'r'; // rope
   int c;
-  while ((c = getopt(argc, argv, "@:h")) >= 0) {
+  while ((c = getopt(argc, argv, "@:dh")) >= 0) {
     switch (c) {
     case '@':
       nt = atoi(optarg);
+      continue;
+    case 'd':
+      otype = 'd'; // delta
       continue;
     case 'h':
       printf("HELP\n");
@@ -109,7 +113,28 @@ int main_index(int argc, char *argv[]) {
   //   rle_print(b, 1);
 
   ct = cputime(), rt = realtime();
-  rlc_dump(rlc, "-"); // TODO: add path to CLI
+  if (otype == 'r')
+    rlc_dump(rlc, "-"); // TODO: add path to CLI
+  else {
+    rpitr_t itr;
+    const uint8_t *block;
+    rld_t *e = 0;
+    rlditr_t di;
+    e = rld_init(6, 3);
+    rld_itr_init(e, &di, 0);
+    rope_itr_first(rlc->rope, &itr);
+    while ((block = rope_itr_next_block(&itr)) != 0) {
+      const uint8_t *q = block + 2, *end = block + 2 + *rle_nptr(block);
+      while (q < end) {
+        int c = 0;
+        int64_t l;
+        rle_dec1(q, c, l);
+        rld_enc(e, &di, l, c);
+      }
+    }
+    rld_enc_finish(e, &di);
+    rld_dump(e, "-");
+  }
   rlc_destroy(rlc);
   fprintf(stderr, "[M::%s] dumped index in  %.3f sec; %.3f CPU sec\n", __func__,
           realtime() - rt, cputime() - ct);
