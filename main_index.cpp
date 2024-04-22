@@ -3,7 +3,7 @@
 #include <zlib.h>
 
 #include "kseq.h"
-#include "rlcsa.h"
+#include "rlcsa.hpp"
 #include "utils.h"
 #include "rld0.h"
 
@@ -114,7 +114,7 @@ int main_index(int argc, char *argv[]) {
 
   ct = cputime(), rt = realtime();
   if (otype == 'r')
-    rlc_dump(rlc, "-"); // TODO: add path to CLI
+    ; // rlc_dump(rlc, "-"); // TODO: add path to CLI
   else {
     rpitr_t itr;
     const uint8_t *block;
@@ -133,7 +133,7 @@ int main_index(int argc, char *argv[]) {
       }
     }
     rld_enc_finish(e, &di);
-    rld_dump(e, "-");
+    // rld_dump(e, "-");
   }
   rlc_destroy(rlc);
   fprintf(stderr, "[M::%s] dumped index in  %.3f sec; %.3f CPU sec\n", __func__,

@@ -3,7 +3,7 @@
 #include <zlib.h>
 
 #include "kseq.h"
-#include "rlcsa.h"
+#include "rlcsa.hpp"
 
 KSEQ_INIT(gzFile, gzread)
 
