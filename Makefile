@@ -21,7 +21,7 @@ debug: CFLAGS+=-DDEBUG -g -O0
 debug: CXXFLAGS+=-DDEBUG -g -O0
 debug: mfmi
 
-mfmi:rle.o rope.o rlcsa.o rld0.o main_index.o main.o # main_search.o main_pp.o
+mfmi:bitvector.o bitbuffer.o rlevector.o rle.o rope.o rlcsa.o rld0.o main_index.o main.o # main_search.o main_pp.o
 		$(CXX) $(CXXFLAGS) $^ -o $@ $(LIBS)
 
 clean:
