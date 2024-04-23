@@ -370,15 +370,15 @@ CSA::RLEVector *merge(CSA::RLEVector *first, CSA::RLEVector *second,
 }
 
 void rlc_merge(rlcsa_t *rlc1, rlcsa_t *rlc2, const uint8_t *seq, int nt) {
-  // double t = realtime();
+  double t = realtime();
   uint32_t i;
   uint8_t c;
 
   // Get $ positions (separators) and "marked positions" (marks)
   std::vector<uint32_t> separators;
   int64_t *marks = get_marks(rlc1, seq, rlc2->l, separators, nt);
-  // fprintf(stderr, "[M::%s] Computed marks in %.3f sec..\n", __func__,
-  // realtime() - t); t = realtime();
+  fprintf(stderr, "[M::%s] Computed marks in %.3f sec..\n", __func__,
+          realtime() - t);
 
   // fprintf(stderr, "Marks: ");
   // for (i = 0; i < rlc2->l; ++i)
@@ -386,23 +386,27 @@ void rlc_merge(rlcsa_t *rlc1, rlcsa_t *rlc2, const uint8_t *seq, int nt) {
   // fprintf(stderr, "\n");
 
   // radix_sort(marks, 0, rlc2->l, 24);
+  t = realtime();
   std::sort(marks, marks + rlc2->l);
-  // fprintf(stderr, "[M::%s] Sorted marks in %.3f sec..\n", __func__,
-  // realtime() - t);
 
 #pragma omp parallel for num_threads(nt) schedule(static)
   for (i = 0; i < rlc2->l; ++i)
     marks[i] += i + 1;
+  fprintf(stderr, "[M::%s] Sorted marks in %.3f sec..\n", __func__,
+          realtime() - t);
 
   // Build C
+  t = realtime();
   for (c = 0; c < 6; ++c)
     rlc1->cnts[c] += rlc2->cnts[c];
   rlc1->C[0] = 0;
   for (c = 1; c < 6; ++c)
     rlc1->C[c] = rlc1->C[c - 1] + rlc1->cnts[c - 1];
-
   rlc1->l += rlc2->l;
+  fprintf(stderr, "[M::%s] Built counts in %.3f sec..\n", __func__,
+          realtime() - t);
 
+  t = realtime();
 #pragma omp parallel for num_threads(nt) schedule(dynamic, 1)
   for (c = 0; c < 6; ++c) {
     rlc1->bits[c] =
@@ -410,8 +414,8 @@ void rlc_merge(rlcsa_t *rlc1, rlcsa_t *rlc2, const uint8_t *seq, int nt) {
     rlc2->bits[c] = 0;
   }
 
-  // fprintf(stderr, "[M::%s] Merged ropes in %.3f sec..\n", __func__,
-  // realtime() - t);
+  fprintf(stderr, "[M::%s] Merged RLCSA in %.3f sec..\n", __func__,
+          realtime() - t);
 
   free(marks);
   rlc_destroy(rlc2);
