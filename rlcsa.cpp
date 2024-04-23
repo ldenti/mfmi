@@ -477,5 +477,5 @@ void rlc_dump(rlcsa_t *rlc) {
   // fprintf(stderr, "\n");
 
   rld_enc_finish(e, &di);
-  // rld_dump(e, "-");
+  rld_dump(e, "-");
 }

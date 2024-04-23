@@ -4,8 +4,8 @@
 
 #include "kseq.h"
 #include "rlcsa.hpp"
-#include "utils.h"
 #include "rld0.h"
+#include "utils.h"
 
 KSEQ_INIT(gzFile, gzread)
 
