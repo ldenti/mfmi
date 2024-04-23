@@ -176,9 +176,10 @@ sa_t *simpleSuffixSort(const uint8_t *sequence, uint32_t n, uint32_t nsep,
 }
 
 void rlc_build(rlcsa_t *rlc, const uint8_t *sequence, uint32_t n, int nt) {
-  // double t;
+  double t;
   // uint32_t i, rl, p;
   // uint8_t c, lc;
+  t = realtime();
   rlc->l = (int64_t)n;
 
   // Build C
@@ -187,12 +188,13 @@ void rlc_build(rlcsa_t *rlc, const uint8_t *sequence, uint32_t n, int nt) {
   rlc->C[0] = 0;
   for (uint8_t c = 1; c < 6; ++c) // FIXME: hardcoded
     rlc->C[c] = rlc->C[c - 1] + rlc->cnts[c - 1];
+  fprintf(stderr, "[M::%s] Built counts in %.3f sec\n", __func__,
+          realtime() - t);
 
   // Build SA
-  // t = realtime();
+  t = realtime();
   sa_t *sa = simpleSuffixSort(sequence, n, (uint32_t)rlc->cnts[0], nt);
-  // fprintf(stderr, "[M::%s] Built SA in %.3f sec\n", __func__, realtime() -
-  // t);
+  fprintf(stderr, "[M::%s] Built SA in %.3f sec\n", __func__, realtime() - t);
 
   // Print BWT
   // for (uint32_t i = 0; i < n; ++i) {
@@ -202,16 +204,18 @@ void rlc_build(rlcsa_t *rlc, const uint8_t *sequence, uint32_t n, int nt) {
   // fprintf(stderr, "\n");
 
   // Build Psi.
-#pragma omp parallel for schedule(static)
+  t = realtime();
+#pragma omp parallel for num_threads(nt) schedule(static)
   for (uint i = 0; i < n; i++)
     sa[i].first = sa[(sa[i].first + 1) % n].second;
-
+  fprintf(stderr, "[M::%s] Built PSI in %.3f sec\n", __func__, realtime() - t);
   // for (int i = 0; i < n; ++i) {
   //   fprintf(stderr, "%d %d\n", sa[i].first, sa[i].second);
   // }
 
+  t = realtime();
   // Build RLCSA
-  // #pragma omp parallel for schedule(dynamic, 1)
+#pragma omp parallel for num_threads(nt) schedule(dynamic, 1)
   for (uint8_t c = 0; c < 6; ++c) {
     if (rlc->cnts[c] == 0) {
       rlc->bits[c] = 0;
@@ -243,6 +247,8 @@ void rlc_build(rlcsa_t *rlc, const uint8_t *sequence, uint32_t n, int nt) {
     // printf("\n");
     // delete iter;
   }
+  fprintf(stderr, "[M::%s] Built RLCSA in %.3f sec\n", __func__,
+          realtime() - t);
   free(sa);
 }
 

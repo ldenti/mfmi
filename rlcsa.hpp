@@ -8,16 +8,14 @@
 #include <omp.h>
 #include <vector>
 
-#include "rld0.h"
-
 #include "bits/rlevector.h"
+#include "rld0.h"
+#include "utils.h"
 
 // #include <assert.h>
 
 // #include <stdint.h>
 // #include <stdlib.h>
-
-// #include "utils.h"
 
 // FIXME: do we want these?
 typedef std::pair<uint32_t, uint32_t> sa_t;
