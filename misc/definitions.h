@@ -6,14 +6,10 @@
 
 
 // #define MULTITHREAD_SUPPORT   // Try to parallelize things using OpenMP.
-// #define MASSIVE_DATA_RLCSA    // usint and sint become 64-bit in a 64-bit environment.
-
 
 namespace CSA
 {
 
-
-#ifdef MASSIVE_DATA_RLCSA
 
 typedef unsigned long usint;
 typedef signed long   sint;
@@ -22,18 +18,6 @@ inline usint popcount(usint field)
 {
   return __builtin_popcountl(field);
 }
-
-#else
-
-typedef unsigned int  usint;
-typedef signed int    sint;
-
-inline usint popcount(usint field)
-{
-  return __builtin_popcount(field);
-}
-
-#endif
 
 
 #ifndef uchar
