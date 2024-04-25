@@ -5,10 +5,11 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <execution>
 #include <omp.h>
 #include <vector>
 
-#include "bits/rlevector.h"
+#include "bits/nibblevector.h"
 #include "rld0.h"
 #include "utils.h"
 
@@ -25,11 +26,11 @@ typedef std::pair<uint32_t, uint32_t> ss_range;
 // typedef NibbleVector  PsiVector;
 // typedef RLEVector     PsiVector;
 
-typedef struct {           // the rlcsa index
-  int64_t l;               // length of indexed text
-  int64_t *cnts;           // marginal counts for each symbol (same as rope->c)
-  int64_t *C;              // C array
-  CSA::RLEVector *bits[6]; // the bit vectors representing the BWT
+typedef struct { // the rlcsa index
+  int64_t l;     // length of indexed text
+  int64_t *cnts; // marginal counts for each symbol (same as rope->c)
+  int64_t *C;    // C array
+  CSA::NibbleVector *bits[6]; // the bit vectors representing the BWT
 } rlcsa_t;
 
 /**
@@ -46,6 +47,11 @@ void rlc_destroy(rlcsa_t *rlc);
  * Dump rlc to stdout
  */
 void rlc_dump(rlcsa_t *rlc); // TODO: add file
+
+/**
+ * Print bwt to stdout
+ */
+void rlc_print_bwt(rlcsa_t *rlc);
 
 /**
  * Insert multiple (0-separated) strings into the index. If index is empty,

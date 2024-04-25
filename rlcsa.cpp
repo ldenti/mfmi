@@ -91,7 +91,7 @@ sa_t *prefixDoubling(sa_t *pairs, uint32_t *keys,
            curr <= pairs + unsorted.at(i).second; ++curr)
         curr->second = keys[curr->first + h];
       std::sort(pairs + unsorted[i].first, pairs + unsorted[i].second + 1,
-                key_comparison);
+                key_comparison, __gnu_parallel::balanced_quicksort_tag());
     }
     total = setRanks(pairs, keys, unsorted, nt, chunk);
     h *= 2;
@@ -111,15 +111,15 @@ sa_t *simpleSuffixSort(const uint8_t *sequence, uint32_t n, uint32_t nsep,
     // TODO: fail more gracefully
     exit(1);
 
-  // double t = realtime();
+  double t = realtime();
   std::vector<ss_range> unsorted;
   skew_pair *pairs = (skew_pair *)calloc(n + 1, sizeof(skew_pair));
   uint32_t *keys =
       (uint32_t *)calloc(n + 1, sizeof(uint32_t)); // In text order.
 
   // Determine pack factor
-  uint32_t alphabet_size = nsep + 5;           // FIXME: hardcoded
-  uint32_t limit = UINT32_MAX / alphabet_size; // FIXME
+  uint32_t alphabet_size = nsep + 5; // FIXME: hardcoded
+  uint32_t limit = UINT32_MAX / alphabet_size;
   uint32_t h = 1, pack_multiplier = 1;
   while (pack_multiplier * alphabet_size <= limit) {
     ++h;
@@ -156,22 +156,32 @@ sa_t *simpleSuffixSort(const uint8_t *sequence, uint32_t n, uint32_t nsep,
     value = (value % pack_multiplier) * alphabet_size;
   }
 
+  // for (i = 0; i < n; i++) {
+  //   fprintf(stderr, "PAIRS[%d] = (%d,%d)\n", i, pairs[i].first,
+  //   pairs[i].second);
+  // }
+
   // Sort according to first character
-  // t = realtime();
-  std::sort(pairs, pairs + n, key_comparison);
-  // fprintf(stderr, "[M::%s] Sorted pairs in %.3f sec\n", __func__, realtime()
-  // - t); t = realtime();
+  // #ifdef MULTITHREAD_SUPPORT
+  omp_set_num_threads(nt);
+  // #endif
+  t = realtime();
+  std::sort(pairs, pairs + n, key_comparison,
+            __gnu_parallel::balanced_quicksort_tag());
+  fprintf(stderr, "[M::%s] Sorted pairs in %.3f sec\n", __func__,
+          realtime() - t);
+  t = realtime();
   unsorted.push_back(std::make_pair(0, n - 1));
   uint32_t total = setRanks(pairs, keys, unsorted, nt, 1);
-  // fprintf(stderr, "[M::%s] Set ranks in %.3f sec\n", __func__, realtime() -
-  // t);
+  fprintf(stderr, "[M::%s] Set ranks in %.3f sec\n", __func__, realtime() - t);
 
   // TODO: doubling vs tripling?
 
-  // t = realtime();
+  t = realtime();
   sa_t *sa = prefixDoubling(pairs, keys, unsorted, n, total, h, nt);
-  // fprintf(stderr, "[M::%s] Prefix doubling in %.3f sec\n", __func__,
-  // realtime() - t); free(keys); kv_destroy(unsorted);
+  fprintf(stderr, "[M::%s] Prefix doubling in %.3f sec\n", __func__,
+          realtime() - t);
+  free(keys); // kv_destroy(unsorted);
   return sa;
 }
 
@@ -209,9 +219,9 @@ void rlc_build(rlcsa_t *rlc, const uint8_t *sequence, uint32_t n, int nt) {
   for (uint i = 0; i < n; i++)
     sa[i].first = sa[(sa[i].first + 1) % n].second;
   fprintf(stderr, "[M::%s] Built PSI in %.3f sec\n", __func__, realtime() - t);
-  // for (int i = 0; i < n; ++i) {
-  //   fprintf(stderr, "%d %d\n", sa[i].first, sa[i].second);
-  // }
+
+  // for (uint i = 0; i < n; i++)
+  //   fprintf(stderr, "SA[%d] = (%d,%d)\n", i, sa[i].first, sa[i].second);
 
   t = realtime();
   // Build RLCSA
@@ -223,29 +233,25 @@ void rlc_build(rlcsa_t *rlc, const uint8_t *sequence, uint32_t n, int nt) {
     }
     std::pair<uint32_t, uint32_t> *curr = sa + rlc->C[c];
     std::pair<uint32_t, uint32_t> *limit = curr + rlc->cnts[c];
-
-    CSA::RLEVector::Encoder encoder(32); // FIXME: hardcoded
+    // fprintf(stderr, "%c: from %d,%d to %d,%d\n", "$ACGTN"[c], curr->first,
+    // curr->second, limit->first, limit->second);
+    CSA::NibbleVector::Encoder encoder(32); // FIXME: hardcoded
     std::pair<uint32_t, uint32_t> run((*curr).first, 1);
     ++curr;
 
     for (; curr < limit; ++curr) {
       if ((*curr).first == run.first + run.second) {
-        run.second++;
+        ++run.second;
       } else {
         encoder.addRun(run.first, run.second);
+        // printf("%c: %d,%d\n", "$ACGTN"[c], run.first, run.second);
         run = std::make_pair((*curr).first, 1);
       }
     }
+    // printf("%c: %d,%d\n", "$ACGTN"[c], run.first, run.second);
     encoder.addRun(run.first, run.second);
     encoder.flush();
-    rlc->bits[c] = new CSA::RLEVector(encoder, rlc->l);
-    // CSA::RLEVector::Iterator *iter =
-    //     new CSA::RLEVector::Iterator(*rlc->bits[c]);
-    // printf("%c: ", "$ACGTN"[c]);
-    // for (int i = 0; i < n; ++i)
-    //   printf("%d", iter->isSet(i));
-    // printf("\n");
-    // delete iter;
+    rlc->bits[c] = new CSA::NibbleVector(encoder, rlc->l);
   }
   fprintf(stderr, "[M::%s] Built RLCSA in %.3f sec\n", __func__,
           realtime() - t);
@@ -258,12 +264,12 @@ void rlc_build(rlcsa_t *rlc, const uint8_t *sequence, uint32_t n, int nt) {
 void report_positions(const rlcsa_t *rlc, const uint8_t *seq, uint32_t n,
                       int64_t *positions) {
   // { this could be a function
-  CSA::RLEVector::Iterator **iters = new CSA::RLEVector::Iterator *[6];
+  CSA::NibbleVector::Iterator **iters = new CSA::NibbleVector::Iterator *[6];
   for (uint8_t i = 0; i < 6; ++i) {
     if (rlc->bits[i] == 0)
       iters[i] = 0;
     else
-      iters[i] = new CSA::RLEVector::Iterator(*(rlc->bits[i]));
+      iters[i] = new CSA::NibbleVector::Iterator(*(rlc->bits[i]));
   }
   // }
 
@@ -291,21 +297,20 @@ int64_t *get_marks(rlcsa_t *rlc, const uint8_t *seq, uint32_t n,
   uint chunk = std::max((uint)1, sequences / (8 * nt));
 #pragma omp parallel for schedule(dynamic, chunk)
   for (i = 0; i < sequences; i++) {
-    // begin = kv_A(end_markers, i);
     begin = i > 0 ? separators.at(i - 1) + 1 : 0;
     report_positions(rlc, seq + begin, separators.at(i) - begin, marks + begin);
   }
   return marks;
 }
 
-CSA::RLEVector *merge(CSA::RLEVector *first, CSA::RLEVector *second,
-                      int64_t *marks, uint32_t n2 /*n*/, uint nn /*size*/,
-                      uint block_size) {
+CSA::NibbleVector *merge(CSA::NibbleVector *first, CSA::NibbleVector *second,
+                         int64_t *marks, uint32_t n2 /*n*/, int64_t nn /*size*/,
+                         uint block_size) {
   if ((first == 0 && second == 0) || marks == 0)
     return 0;
 
-  CSA::RLEVector::Iterator *first_iter = 0;
-  CSA::RLEVector::Iterator *second_iter = 0;
+  CSA::NibbleVector::Iterator *first_iter = 0;
+  CSA::NibbleVector::Iterator *second_iter = 0;
 
   std::pair<int64_t, int64_t> first_run;
   bool first_finished;
@@ -313,7 +318,7 @@ CSA::RLEVector *merge(CSA::RLEVector *first, CSA::RLEVector *second,
     first_run = std::make_pair(nn, 0);
     first_finished = true;
   } else {
-    first_iter = new CSA::RLEVector::Iterator(*first);
+    first_iter = new CSA::NibbleVector::Iterator(*first);
     first_run = first_iter->selectRun(0, nn);
     ++first_run.second;
     first_finished = false;
@@ -323,11 +328,11 @@ CSA::RLEVector *merge(CSA::RLEVector *first, CSA::RLEVector *second,
   if (second == 0) {
     second_bit = n2;
   } else {
-    second_iter = new CSA::RLEVector::Iterator(*second);
+    second_iter = new CSA::NibbleVector::Iterator(*second);
     second_bit = second_iter->select(0);
   }
 
-  CSA::RLEVector::Encoder encoder(block_size);
+  CSA::NibbleVector::Encoder encoder(block_size);
   for (uint32_t i = 0; i < n2; ++i) {
     while (!first_finished && first_run.first + i < marks[i]) {
       int64_t bits = std::min(first_run.second, marks[i] - i - first_run.first);
@@ -337,7 +342,7 @@ CSA::RLEVector *merge(CSA::RLEVector *first, CSA::RLEVector *second,
       if (first_run.second == 0) {
         if (first_iter->hasNext()) {
           first_run = first_iter->selectNextRun(nn);
-          first_run.second++;
+          ++first_run.second;
         } else {
           first_finished = true;
         }
@@ -355,7 +360,7 @@ CSA::RLEVector *merge(CSA::RLEVector *first, CSA::RLEVector *second,
     encoder.addRun(first_run.first + n2, first_run.second);
     if (first_iter->hasNext()) {
       first_run = first_iter->selectNextRun(nn);
-      first_run.second++;
+      ++first_run.second;
     } else {
       first_finished = true;
     }
@@ -365,8 +370,10 @@ CSA::RLEVector *merge(CSA::RLEVector *first, CSA::RLEVector *second,
   delete second_iter;
   delete first;
   delete second;
+
   encoder.flush();
-  return new CSA::RLEVector(encoder, nn);
+
+  return new CSA::NibbleVector(encoder, nn);
 }
 
 void rlc_merge(rlcsa_t *rlc1, rlcsa_t *rlc2, const uint8_t *seq, int nt) {
@@ -379,15 +386,13 @@ void rlc_merge(rlcsa_t *rlc1, rlcsa_t *rlc2, const uint8_t *seq, int nt) {
   int64_t *marks = get_marks(rlc1, seq, rlc2->l, separators, nt);
   fprintf(stderr, "[M::%s] Computed marks in %.3f sec..\n", __func__,
           realtime() - t);
-
-  // fprintf(stderr, "Marks: ");
-  // for (i = 0; i < rlc2->l; ++i)
+  // for (i = 0; i<rlc2->l; ++i)
   //   fprintf(stderr, "%ld ", marks[i]);
   // fprintf(stderr, "\n");
 
-  // radix_sort(marks, 0, rlc2->l, 24);
   t = realtime();
-  std::sort(marks, marks + rlc2->l);
+  std::sort(marks,
+            marks + rlc2->l); // , __gnu_parallel::balanced_quicksort_tag());
 
 #pragma omp parallel for num_threads(nt) schedule(static)
   for (i = 0; i < rlc2->l; ++i)
@@ -406,12 +411,25 @@ void rlc_merge(rlcsa_t *rlc1, rlcsa_t *rlc2, const uint8_t *seq, int nt) {
   fprintf(stderr, "[M::%s] Built counts in %.3f sec..\n", __func__,
           realtime() - t);
 
+  // for (i = 0; i<rlc2->l; ++i)
+  //   fprintf(stderr, "%ld ", marks[i]);
+  // fprintf(stderr, "\n");
+
   t = realtime();
 #pragma omp parallel for num_threads(nt) schedule(dynamic, 1)
   for (c = 0; c < 6; ++c) {
     rlc1->bits[c] =
         merge(rlc1->bits[c], rlc2->bits[c], marks, rlc2->l, rlc1->l, 32);
     rlc2->bits[c] = 0;
+
+    // printf("%c : ", "$ACGTN"[c]);
+    // if (rlc1->bits[c] != 0) {
+    //   CSA::NibbleVector::Iterator *iter = new
+    //   CSA::NibbleVector::Iterator(*(rlc1->bits[c])); for (int64_t i = 0; i <
+    //   rlc1->l; ++i)
+    //     printf("%d", iter->isSet(i));
+    // }
+    // printf("\n");
   }
 
   fprintf(stderr, "[M::%s] Merged RLCSA in %.3f sec..\n", __func__,
@@ -421,43 +439,40 @@ void rlc_merge(rlcsa_t *rlc1, rlcsa_t *rlc2, const uint8_t *seq, int nt) {
   rlc_destroy(rlc2);
 }
 
-void rlc_print_bits(rlcsa_t *rlc) {
+void rlc_print_bwt(rlcsa_t *rlc) {
+  fprintf(stderr, "Total length: %ld\n", rlc->l);
   // { this could be a function
-  CSA::RLEVector::Iterator **iters = new CSA::RLEVector::Iterator *[6];
+  CSA::NibbleVector::Iterator **iters = new CSA::NibbleVector::Iterator *[6];
   for (uint8_t i = 0; i < 6; ++i) {
     if (rlc->bits[i] == 0)
       iters[i] = 0;
     else
-      iters[i] = new CSA::RLEVector::Iterator(*(rlc->bits[i]));
+      iters[i] = new CSA::NibbleVector::Iterator(*(rlc->bits[i]));
   }
   // }
 
   uint8_t c;
-  for (c = 0; c < 6; ++c) {
-    if (iters[c] == 0)
-      continue;
-    printf("%c: ", "$ACGTN"[c]);
-    for (int64_t i = 0; i < rlc->l; ++i) {
-      printf("%d", iters[c]->isSet(i));
-    }
-    printf("\n");
+  for (int64_t i = 0; i < rlc->l; ++i) {
+    c = 0;
+    while (!iters[c]->isSet(i))
+      ++c;
+    printf("%c", "$ACGTN"[c]);
   }
+  printf("\n");
 }
 
 void rlc_dump(rlcsa_t *rlc) {
-  // fprintf(stderr, "Total length: %ld\n", rlc->l);
+  uint8_t c;
 
   // { this could be a function
-  CSA::RLEVector::Iterator **iters = new CSA::RLEVector::Iterator *[6];
-  for (uint8_t i = 0; i < 6; ++i) {
-    if (rlc->bits[i] == 0)
-      iters[i] = 0;
+  CSA::NibbleVector::Iterator **iters = new CSA::NibbleVector::Iterator *[6];
+  for (c = 0; c < 6; ++c) {
+    if (rlc->bits[c] == 0)
+      iters[c] = 0;
     else
-      iters[i] = new CSA::RLEVector::Iterator(*(rlc->bits[i]));
+      iters[c] = new CSA::NibbleVector::Iterator(*(rlc->bits[c]));
   }
   // }
-
-  uint8_t c;
 
   rld_t *e = 0;
   rlditr_t di;
@@ -468,7 +483,7 @@ void rlc_dump(rlcsa_t *rlc) {
   uint8_t rc = 0;
   while (!iters[rc]->isSet(0))
     ++rc;
-  // fprintf(stderr, "%c", "$ACGTN"[rc]);
+
   for (int64_t i = 1; i < rlc->l; ++i) {
     c = 0;
     while (!iters[c]->isSet(i))
@@ -480,12 +495,13 @@ void rlc_dump(rlcsa_t *rlc) {
       rl = 1;
       rc = c;
     }
-    // fprintf(stderr, "%c", "$ACGTN"[c]);
   }
   rld_enc(e, &di, rl, rc);
 
-  // fprintf(stderr, "\n");
-
   rld_enc_finish(e, &di);
   rld_dump(e, "-");
+
+  for (c = 0; c < 6; ++c)
+    delete iters[c];
+  // delete iters;
 }
