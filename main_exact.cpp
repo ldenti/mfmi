@@ -9,10 +9,8 @@
 
 KSEQ_INIT(gzFile, gzread)
 
-int main_search(int argc, char *argv[]) {
+int main_exact(int argc, char *argv[]) {
   (void)argc; // suppress unused parameter warning
-  double t_start;
-  t_start = realtime();
 
   char *index_fn = argv[1]; // index
   char *fq_fn = argv[2];    // **perfect** reads
