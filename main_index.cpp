@@ -3,7 +3,8 @@
 #include <zlib.h>
 
 #include "kseq.h"
-#include "rlcsa.h"
+#include "rlcsa.hpp"
+#include "rld0.h"
 #include "utils.h"
 
 KSEQ_INIT(gzFile, gzread)
@@ -11,9 +12,8 @@ KSEQ_INIT(gzFile, gzread)
 int main_index(int argc, char *argv[]) {
   int nt = 1;
   // uint32_t m = (uint32_t)(INT32_MAX); // (uint32_t)(0.85 * UINT32_MAX) + 1;
-
   int c;
-  while ((c = getopt(argc, argv, "@:h")) >= 0) {
+  while ((c = getopt(argc, argv, "@:dh")) >= 0) {
     switch (c) {
     case '@':
       nt = atoi(optarg);
@@ -101,16 +101,13 @@ int main_index(int argc, char *argv[]) {
   free(buf.s);
   free(buf_rc.s);
 
-  // Print BWT - debug
-  // rpitr_t *it = calloc(1, sizeof(rpitr_t));
-  // rope_itr_first(rlc->rope, it);
-  // uint8_t *b;
-  // while ((b = (uint8_t *)rope_itr_next_block(it)) != 0)
-  //   rle_print(b, 1);
-
+  // Build BWT and store as rld0
   ct = cputime(), rt = realtime();
-  rlc_dump(rlc, "-"); // TODO: add path to CLI
+  // rlc_print_bwt(rlc);
+  rlc_dump(rlc);
+
   rlc_destroy(rlc);
+
   fprintf(stderr, "[M::%s] dumped index in  %.3f sec; %.3f CPU sec\n", __func__,
           realtime() - rt, cputime() - ct);
 
