@@ -1,4 +1,4 @@
-# PingPong using ropebwt2 index
+# PingPong using rlcsa index
 
 ```
 git submodule update --init --recursive rlcsa
@@ -7,7 +7,7 @@ make -j2
 cd ..
 make -j2
 
-./rl index -r -i index ../../../example/4.fa.gz
-./rl index-rec -r -i index-rec ../../../example/4.fa.gz
-./rl pingpong index ../../../example/reads.fq.gz > specific_strings.sfs
+./rl index -i INDEX ../../../example/4.fa.gz
+./rl exact INDEX ../../../example/perfect_reads.fq.gz
+./rl pingpong INDEX ../../../example/reads.fq.gz > specific_strings.sfs
 ```

@@ -1,0 +1,42 @@
+from snakemake.utils import min_version
+from os.path import join as pjoin
+
+
+##### config file #####
+configfile: "config/config.yaml"
+
+
+##### set minimum snakemake version #####
+min_version("6.4.1")
+
+AGC = config["agc"]
+WD = config["wd"]
+SEED = config["seed"]
+THREADS = config["threads"]
+Ns = config["n"]
+
+
+##### include rules #####
+# prepare data
+include: "rules/common.smk"
+# practical rlbwt
+include: "rules/prl.smk"
+# ropebwt2
+include: "rules/rope.smk"
+# rlcsa
+include: "rules/rl.smk"
+
+
+##### target rules #####
+rule all:
+    input:
+        # prl
+        expand(pjoin(WD, "{n}", "prl-exact.out"), n=Ns),
+        expand(pjoin(WD, "{n}", "prl-specifics.txt"), n=Ns),
+        # ropebwt2
+        expand(pjoin(WD, "{n}", "rope-index.diff"), n=Ns),
+        expand(pjoin(WD, "{n}", "rope-exact.out"), n=[n for n in Ns if n <= 8]),
+        expand(pjoin(WD, "{n}", "rope-specifics.txt"), n=Ns),
+        # rlcsa
+        expand(pjoin(WD, "{n}", "rl-exact.out"), n=Ns),
+        expand(pjoin(WD, "{n}", "rl-specifics.txt"), n=Ns),

@@ -1,4 +1,4 @@
-# PingPong using ropebwt2 index
+# Searching using ropebwt2 index
 
 ```
 git submodule update --init --recursive ropebwt2
@@ -8,6 +8,7 @@ cd ..
 make -j2
 
 ./rt2 index ../../../example/4.fa.gz > index.fmd
-./rt2 index-rec ../../../example/4.fa.gz > index-rec.fmd
+# add -@ to use threads
+./rt2 exact index.fmd ../../../example/perfect_reads.fq.gz
 ./rt2 pingpong index.fmd ../../../example/reads.fq.gz > specific_strings.sfs
 ```

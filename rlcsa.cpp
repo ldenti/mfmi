@@ -493,10 +493,10 @@ void rlc_dump(rlcsa_t *rlc) {
 
   int64_t rl = 1;
   uint8_t rc = 0;
-  uint64_t p = 0;
-  while (!iters[rc]->isSet(0)) // FIXME: assuming first bit to be there
+  // uint64_t p = 0;
+  while (!iters[rc]->isSet(0)) // FIXME: assuming first bit to be there (no 0-column)
     ++rc;
-  fprintf(stderr, "Initial %c (total length: %ld)\n", "$ACGTN"[rc], rlc->l);
+
   for (int64_t i = 1; i < rlc->l; ++i) {
     c = 0;
     while (c < 6) {
@@ -506,15 +506,17 @@ void rlc_dump(rlcsa_t *rlc) {
     }
     // fprintf(stderr, "- %c\n", "$ACGTN"[c]);
     if (c == 6) { // CHECKME: sometimes a "column" in the bit vectors is only 0
-                // (this also in original implementation). Is it correct to consider them separators?
+                  // (this also in original implementation). Is it correct to
+                  // consider them separators?
       fprintf(stderr, "!! 0 column at position %ld - setting to 0\n", i);
       c = 0; // continue;
     }
     if (c == rc)
       ++rl;
     else {
-      // fprintf(stderr, "Encoding %c %ld at position %ld\n", "$ACGTN"[rc], rl, p);
-      p+=rl;
+      // fprintf(stderr, "Encoding %c %ld at position %ld\n", "$ACGTN"[rc], rl,
+      // p);
+      // p += rl;
       rld_enc(e, &di, rl, rc);
       rl = 1;
       rc = c;

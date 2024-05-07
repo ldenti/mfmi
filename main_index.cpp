@@ -11,7 +11,6 @@ KSEQ_INIT(gzFile, gzread)
 
 int main_index(int argc, char *argv[]) {
   int nt = 1;
-  // uint32_t m = (uint32_t)(INT32_MAX); // (uint32_t)(0.85 * UINT32_MAX) + 1;
   int c;
   while ((c = getopt(argc, argv, "@:dh")) >= 0) {
     switch (c) {

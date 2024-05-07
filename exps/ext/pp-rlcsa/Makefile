@@ -9,7 +9,7 @@ LIBS=		-lz -lrlcsa
 
 all: rl
 
-rl:main_index.o fmd_simple.o main_pp.o main.o
+rl:main_index.o main_exact.o main_pp.o main.o
 		$(CXX) $(CXXFLAGS) $^ -o $@ $(LIBS)
 
 clean:
