@@ -9,7 +9,7 @@ LIBS=		-lz -lpthread
 
 all: rt2
 
-rt2:ropebwt2/rld0.o ropebwt2/mrope.o ropebwt2/rope.o ropebwt2/rle.o main_index.o main_pp.o main.o
+rt2:ropebwt2/rld0.o ropebwt2/mrope.o ropebwt2/rope.o ropebwt2/rle.o main_index.o main_exact.o main_pp.o main.o
 		$(CC) $(CFLAGS) $^ -o $@ $(LIBS)
 
 clean:
