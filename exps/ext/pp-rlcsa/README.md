@@ -1,4 +1,4 @@
-# PingPong using ropebwt2 index
+# PingPong using rlcsa index
 
 ```
 git submodule update --init --recursive rlcsa

@@ -1,0 +1,11 @@
+agc: "/home/ld/data/rlbwt/2L-8.agc"
+wd: "/home/ld/data/rlbwt/2L-8-WD"
+seed: 23
+threads: 8
+n:
+  - 1
+  - 2
+  # - 4
+  # - 8
+  # - 16
+  # - 32
