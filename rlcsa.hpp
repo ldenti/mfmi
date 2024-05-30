@@ -44,9 +44,9 @@ rlcsa_t *rlc_init();
 void rlc_destroy(rlcsa_t *rlc);
 
 /**
- * Dump rlc to stdout
+ * Dump rlc to file fp
  */
-void rlc_dump(rlcsa_t *rlc); // TODO: add file
+void rlc_dump(rlcsa_t *rlc, const char *fp);
 
 /**
  * Print bwt to stdout

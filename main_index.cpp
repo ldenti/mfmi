@@ -103,7 +103,7 @@ int main_index(int argc, char *argv[]) {
   // Build BWT and store as rld0
   ct = cputime(), rt = realtime();
   // rlc_print_bwt(rlc);
-  rlc_dump(rlc);
+  rlc_dump(rlc, "-");
 
   rlc_destroy(rlc);
 

@@ -473,7 +473,7 @@ void rlc_print_bwt(rlcsa_t *rlc) {
   printf("\n");
 }
 
-void rlc_dump(rlcsa_t *rlc) {
+void rlc_dump(rlcsa_t *rlc, const char *fp) {
   uint8_t c;
 
   // { this could be a function
@@ -528,7 +528,7 @@ void rlc_dump(rlcsa_t *rlc) {
   rld_enc_finish(e, &di);
 
   // fprintf(stderr, "Dumping index to stdout\n");
-  rld_dump(e, "-");
+  rld_dump(e, fp);
   fprintf(stderr, "Done.\n");
 
   for (c = 0; c < 6; ++c)
