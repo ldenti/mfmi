@@ -55,6 +55,9 @@ void concatenate_fa(const char *fa_path, uint64_t size, unsigned char *data,
     memmove(data_r + curr_l, ks->seq.s, l);
 
     curr_l += l + 1;
+    data[curr_l-1] = '\0';
+    data_r[curr_l-1] = '\0';
+
   }
   kseq_destroy(ks);
   gzclose(fp);
